@@ -2299,7 +2299,7 @@ namespace WzComparerR2
 
         private void tsmi1DumpAsXml_Click(object sender, EventArgs e)
         {
-            bool flaggg = true;
+            bool flaggg = false;
             if (!flaggg) {
                 Wz_Image img = advTree1.SelectedNode?.AsWzNode()?.GetValue<Wz_Image>();
                 if (img == null)
@@ -2309,11 +2309,13 @@ namespace WzComparerR2
                 }
 
                 SaveFileDialog dlg = new SaveFileDialog();
+                string fname = img.Node.FullPathToFile.Replace('\\', '.');
                 dlg.DefaultExt = ".xml";
                 dlg.Filter = "XML (*.xml)|*.xml";
-                dlg.FileName = img.Node.FullPathToFile.Replace('\\', '.') + ".xml";
+                dlg.FileName = fname + ".xml";
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
+                    string dir = Path.GetDirectoryName(dlg.FileName);
                     FileStream fs = null;
                     try
                     {
@@ -2329,7 +2331,7 @@ namespace WzComparerR2
                         };
                         var writer = XmlWriter.Create(fs, xsetting);
                         writer.WriteStartDocument(true);
-                        img.Node.DumpAsXml(writer);
+                        img.Node.DumpAsXml(writer, dir);
                         writer.WriteEndDocument();
                         writer.Close();
 
@@ -2393,7 +2395,7 @@ namespace WzComparerR2
                                     };
                                     var writer = XmlWriter.Create(fs, xsetting);
                                     writer.WriteStartDocument(true);
-                                    img.Node.DumpAsXml(writer);
+                                    img.Node.DumpAsXml(writer, dir);
                                     writer.WriteEndDocument();
                                     writer.Close();
                                     cnt++;
@@ -2463,7 +2465,7 @@ namespace WzComparerR2
                     searchAdvTree(advTree3, 1, textBoxItemSearchWz.Text, checkBoxItemExact1.Checked, checkBoxItemRegex1.Checked);
                     break;
                 case 3: //full path
-                    searchAdvTreeEx(advTree1, 0, 1, textBoxItemSearchWz.Text);
+                    searchAdvTreeFullPath(textBoxItemSearchWz.Text);
                     break;
                 case 4:
                     searchAdvTreeEx(advTree3, 0, 1, textBoxItemSearchWz.Text);
@@ -4317,6 +4319,11 @@ namespace WzComparerR2
             {
                 bool isUpdateRequired = await AutomaticCheckUpdate();
                 if (isUpdateRequired) new FrmUpdater().ShowDialog();
+
+                if (WcR2Config.Default.RecentDocuments[0] != null) //Yukari Auto-Open
+                {
+                    openWz(WcR2Config.Default.RecentDocuments[0]);
+                }
             }
         }
     }
