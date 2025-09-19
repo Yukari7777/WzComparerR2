@@ -4324,7 +4324,7 @@ namespace WzComparerR2
                 bool isUpdateRequired = await AutomaticCheckUpdate();
                 if (isUpdateRequired) new FrmUpdater().ShowDialog();
 
-                if (WcR2Config.Default.RecentDocuments[0] != null) //Yukari Auto-Open
+                if (WcR2Config.Default.RecentDocuments.Count > 0)
                 {
                     openWz(WcR2Config.Default.RecentDocuments[0]);
                 }
