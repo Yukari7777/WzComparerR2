@@ -1232,20 +1232,6 @@ namespace WzComparerR2.CharaSimControl
                 picH += Gear.IllusionRingPreview.Bitmap.Height;
                 picH += 6;
             }
-
-            // 일루전 링 미리보기
-            if (Gear.IllusionRingPreview.Bitmap != null)
-            {
-                AddLines(0, 7, ref picH, condition: secondLineNeeded);
-                secondLineNeeded = false;
-                hasThirdContents = true;
-                hasDescPart = true;
-
-                picH += 2;
-                g.DrawImage(Gear.IllusionRingPreview.Bitmap, (bitmap.Width - Gear.IllusionRingPreview.Bitmap.Width) / 2, picH);
-                picH += Gear.IllusionRingPreview.Bitmap.Height;
-                picH += 6;
-            }
             if (hasDescPart)
                 picH += 4;
 
