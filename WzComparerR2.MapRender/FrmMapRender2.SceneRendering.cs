@@ -1000,7 +1000,7 @@ namespace WzComparerR2.MapRender
                 return null;
             }
 
-            //计算坐标
+            //좌표 계산
             int cx = back.Cx;
             int cy = back.Cy;
             if ((back.TileMode & TileMode.BothTile) != 0 && (cx == 0 || cy == 0))
@@ -1027,22 +1027,22 @@ namespace WzComparerR2.MapRender
             Vector2 tileOff = new Vector2(cx, cy);
             Vector2 position = new Vector2(back.X, back.Y);
 
-            //计算水平卷动
+            //수평 스크롤 계산
             if ((back.TileMode & TileMode.ScrollHorizontal) != 0)
             {
                 position.X += ((float)back.Rx * 5 * back.View.Time / 1000) % cx;// +this.Camera.Center.X * (100 - Math.Abs(this.rx)) / 100;
             }
-            else //镜头移动比率偏移
+            else //렌즈 이동 비율 오프셋
             {
                 position.X += renderEnv.Camera.Center.X * (100 + back.Rx) / 100;
             }
 
-            //计算垂直卷动
+            //수직 스크롤 계산
             if ((back.TileMode & TileMode.ScrollVertical) != 0)
             {
                 position.Y += ((float)back.Ry * 5 * back.View.Time / 1000) % cy;// +this.Camera.Center.Y * (100 - Math.Abs(this.ry)) / 100;
             }
-            else //镜头移动比率偏移
+            else //렌즈 이동 비율 오프셋
             {
                 position.Y += (renderEnv.Camera.Center.Y) * (100 + back.Ry) / 100;
             }
