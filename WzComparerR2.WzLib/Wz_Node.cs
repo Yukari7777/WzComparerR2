@@ -567,9 +567,11 @@ namespace WzComparerR2.WzLib
             return wzImg;
         }
 
-        public static void DumpAsXml(this Wz_Node node, XmlWriter writer)
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
         {
             object value = node.Value;
+            bool dumpRaw = false;//Yukari
+            bool dumpExt = true;//save raw files as external files
 
             if (value == null || value is Wz_Image)
             {
@@ -585,18 +587,34 @@ namespace WzComparerR2.WzLib
                 writer.WriteAttributeString("format", ((int)png.Format).ToString());
                 writer.WriteAttributeString("scale", png.Scale.ToString());
                 writer.WriteAttributeString("pages", png.Pages.ToString());
-                for(int i = 0; i < png.ActualPages; i++)
+                if (dumpRaw)
                 {
-                    using (var bmp = png.ExtractPng())
+                    for (int i = 0; i < png.ActualPages; i++)
                     {
-                        using (var ms = new MemoryStream())
+                        using (var bmp = png.ExtractPng())
                         {
-                            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                            byte[] data = ms.ToArray();
-                            string attrName = "value" + (i > 0 ? (i + 1).ToString() : null);
-                            writer.WriteAttributeString(attrName, Convert.ToBase64String(data));
+                            using (var ms = new MemoryStream())
+                            {
+                                bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                byte[] data = ms.ToArray();
+                                string attrName = "value" + (i > 0 ? (i + 1).ToString() : null);
+                                writer.WriteAttributeString(attrName, Convert.ToBase64String(data));
+                            }
                         }
                     }
+                }
+                else if (dumpExt)
+                {
+                    for (int i = 0; i < png.ActualPages; i++)
+                    {
+
+                        using (var bmp = png.ExtractPng())
+                        {
+                            string fname = dir + "\\" + node.FullPathToFile.Replace('\\', '.') + (i > 0 ? "." + (i + 1).ToString() : "") + ".png";
+                            bmp.Save(fname);
+                        }
+                    }
+                    writer.WriteAttributeString("file", node.FullPathToFile.Replace('\\', '.'));
                 }
             }
             else if (value is Wz_Uol uol)
@@ -615,13 +633,16 @@ namespace WzComparerR2.WzLib
             {
                 writer.WriteStartElement("sound");
                 writer.WriteAttributeString("name", node.Text);
-                byte[] data = sound.ExtractSound();
-                if (data == null)
+                if (dumpRaw)
                 {
-                    data = new byte[sound.DataLength];
-                    sound.CopyTo(data, 0);
+                    byte[] data = sound.ExtractSound();
+                    if (data == null)
+                    {
+                        data = new byte[sound.DataLength];
+                        sound.CopyTo(data, 0);
+                    }
+                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
                 }
-                writer.WriteAttributeString("value", Convert.ToBase64String(data));
             }
             else if (value is Wz_Convex contex)
             {
@@ -639,18 +660,24 @@ namespace WzComparerR2.WzLib
                 writer.WriteStartElement("rawdata");
                 writer.WriteAttributeString("name", node.Text);
                 writer.WriteAttributeString("length", rawdata.Length.ToString());
-                byte[] data = new byte[rawdata.Length];
-                rawdata.CopyTo(data, 0);
-                writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                if (dumpRaw)
+                {
+                    byte[] data = new byte[rawdata.Length];
+                    rawdata.CopyTo(data, 0);
+                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                }
             }
             else if (value is Wz_Video video)
             {
                 writer.WriteStartElement("video");
                 writer.WriteAttributeString("name", node.Text);
                 writer.WriteAttributeString("length", video.Length.ToString());
-                byte[] data = new byte[video.Length];
-                video.CopyTo(data, 0);
-                writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                if (dumpRaw)
+                {
+                    byte[] data = new byte[video.Length];
+                    video.CopyTo(data, 0);
+                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                }
             }
             else
             {
@@ -663,7 +690,7 @@ namespace WzComparerR2.WzLib
             //输出子节点
             foreach (var child in node.Nodes)
             {
-                DumpAsXml(child, writer);
+                DumpAsXml(child, writer, dir);
             }
 
             //结束标识
