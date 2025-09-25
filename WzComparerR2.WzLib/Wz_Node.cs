@@ -570,7 +570,6 @@ namespace WzComparerR2.WzLib
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer)
         {
             object value = node.Value;
-            bool dumpRaw = false;//Yukari
 
             if (value == null || value is Wz_Image)
             {
@@ -586,21 +585,18 @@ namespace WzComparerR2.WzLib
                 writer.WriteAttributeString("format", ((int)png.Format).ToString());
                 writer.WriteAttributeString("scale", png.Scale.ToString());
                 writer.WriteAttributeString("pages", png.Pages.ToString());
-                if (dumpRaw)
+                for(int i = 0; i < png.ActualPages; i++)
                 {
-                    for (int i = 0; i < png.ActualPages; i++)
+                    using (var bmp = png.ExtractPng())
                     {
-                        using (var bmp = png.ExtractPng())
+                        using (var ms = new MemoryStream())
                         {
-                            using (var ms = new MemoryStream())
-                            {
-                                bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                                byte[] data = ms.ToArray();
-                                string attrName = "value" + (i > 0 ? (i + 1).ToString() : null);
-                                writer.WriteAttributeString(attrName, Convert.ToBase64String(data));
-                            }
+                            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                            byte[] data = ms.ToArray();
+                            string attrName = "value" + (i > 0 ? (i + 1).ToString() : null);
+                            writer.WriteAttributeString(attrName, Convert.ToBase64String(data));
                         }
-                    } 
+                    }
                 }
             }
             else if (value is Wz_Uol uol)
@@ -619,16 +615,13 @@ namespace WzComparerR2.WzLib
             {
                 writer.WriteStartElement("sound");
                 writer.WriteAttributeString("name", node.Text);
-                if (dumpRaw)
+                byte[] data = sound.ExtractSound();
+                if (data == null)
                 {
-                    byte[] data = sound.ExtractSound();
-                    if (data == null)
-                    {
-                        data = new byte[sound.DataLength];
-                        sound.CopyTo(data, 0);
-                    }
-                    writer.WriteAttributeString("value", Convert.ToBase64String(data)); 
+                    data = new byte[sound.DataLength];
+                    sound.CopyTo(data, 0);
                 }
+                writer.WriteAttributeString("value", Convert.ToBase64String(data));
             }
             else if (value is Wz_Convex contex)
             {
@@ -646,24 +639,18 @@ namespace WzComparerR2.WzLib
                 writer.WriteStartElement("rawdata");
                 writer.WriteAttributeString("name", node.Text);
                 writer.WriteAttributeString("length", rawdata.Length.ToString());
-                if (dumpRaw)
-                {
-                    byte[] data = new byte[rawdata.Length];
-                    rawdata.CopyTo(data, 0);
-                    writer.WriteAttributeString("value", Convert.ToBase64String(data)); 
-                }
+                byte[] data = new byte[rawdata.Length];
+                rawdata.CopyTo(data, 0);
+                writer.WriteAttributeString("value", Convert.ToBase64String(data));
             }
             else if (value is Wz_Video video)
             {
                 writer.WriteStartElement("video");
                 writer.WriteAttributeString("name", node.Text);
                 writer.WriteAttributeString("length", video.Length.ToString());
-                if (dumpRaw)
-                {
-                    byte[] data = new byte[video.Length];
-                    video.CopyTo(data, 0);
-                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
-                }
+                byte[] data = new byte[video.Length];
+                video.CopyTo(data, 0);
+                writer.WriteAttributeString("value", Convert.ToBase64String(data));
             }
             else
             {

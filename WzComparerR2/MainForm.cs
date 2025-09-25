@@ -1497,7 +1497,7 @@ namespace WzComparerR2
                 advTree2.ClearAndDisposeAllNodes();
                 //advTree2.Nodes.Clear();
 
-                QueryPerformance.Start(); //Yukari - Extract
+                QueryPerformance.Start();
                 try
                 {
                     Exception ex;
@@ -2303,124 +2303,51 @@ namespace WzComparerR2
 
         private void tsmi1DumpAsXml_Click(object sender, EventArgs e)
         {
-            bool flaggg = true;
-            if (!flaggg) {
-                Wz_Image img = advTree1.SelectedNode?.AsWzNode()?.GetValue<Wz_Image>();
-                if (img == null)
-                {
-                    MessageBoxEx.Show("XML로 내보낼 img를 선택하세요.");
-                    return;
-                }
-
-                SaveFileDialog dlg = new SaveFileDialog();
-                dlg.DefaultExt = ".xml";
-                dlg.Filter = "XML (*.xml)|*.xml";
-                dlg.FileName = img.Node.FullPathToFile.Replace('\\', '.') + ".xml";
-                if (dlg.ShowDialog() == DialogResult.OK)
-                {
-                    FileStream fs = null;
-                    try
-                    {
-                        fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write);
-                        var xsetting = new XmlWriterSettings()
-                        {
-                            CloseOutput = false,
-                            Indent = true,
-                            Encoding = Encoding.UTF8,
-                            CheckCharacters = true,
-                            NewLineChars = Environment.NewLine,
-                            NewLineOnAttributes = false,
-                        };
-                        var writer = XmlWriter.Create(fs, xsetting);
-                        writer.WriteStartDocument(true);
-                        img.Node.DumpAsXml(writer);
-                        writer.WriteEndDocument();
-                        writer.Close();
-
-                        labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBoxEx.Show(ex.ToString(), "오류");
-                    }
-                    finally
-                    {
-                        if (fs != null)
-                        {
-                            fs.Close();
-                        }
-                    }
-                }
-            } else
+            Wz_Image img = advTree1.SelectedNode?.AsWzNode()?.GetValue<Wz_Image>();
+            if (img == null)
             {
-                FolderBrowserDialog fdlg = new FolderBrowserDialog();
-                int cnt = 0;
-                if (fdlg.ShowDialog() == DialogResult.OK)
+                MessageBoxEx.Show("XML로 내보낼 img를 선택하세요.");
+                return;
+            }
+            SaveFileDialog dlg = new SaveFileDialog();
+            dlg.DefaultExt = ".xml";
+            dlg.Filter = "XML (*.xml)|*.xml";
+            dlg.FileName = img.Node.FullPathToFile.Replace('\\', '.') + ".xml";
+            if (dlg.ShowDialog() == DialogResult.OK)
+            {
+                FileStream fs = null;
+                try
                 {
-                    advTree1.SelectedNode = null;
-                    QueryPerformance.Start();
-                    foreach (Node node in findNextNode(advTree1))
+                    fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write);
+                    var xsetting = new XmlWriterSettings()
                     {
-                        Wz_File wzf = node?.AsWzNode().GetNodeWzFile();
-                        if (wzf.Type != Wz_Type.Skill) continue;
-                        //if (cnt > 2) break;
+                        CloseOutput = false,
+                        Indent = true,
+                        Encoding = Encoding.UTF8,
+                        CheckCharacters = true,
+                        NewLineChars = Environment.NewLine,
+                        NewLineOnAttributes = false,
+                    };
+                    var writer = XmlWriter.Create(fs, xsetting);
+                    writer.WriteStartDocument(true);
+                    img.Node.DumpAsXml(writer);
+                    writer.WriteEndDocument();
+                    writer.Close();
 
-                        if (node != null)
-                        {
-                            Wz_Image img = node?.AsWzNode()?.GetValue<Wz_Image>();
-                            if (img != null)
-                            {
-                                Exception ex2;
-                                if (img.TryExtract(out ex2))
-                                {
-                                    labelItemStatus.Text = "불러오기 완료 ";
-                                }
-                                else
-                                {
-                                    labelItemStatus.Text = "불러오기 실패: " + ex2.Message;
-                                }
-
-                                string dir = Path.Combine(fdlg.SelectedPath, img.Node.FullPathToFile.Replace('\\', '.'));
-                                Directory.CreateDirectory(Path.GetDirectoryName(dir));
-                                FileStream fs = null;
-                                try
-                                {
-                                    fs = new FileStream(dir + ".xml", FileMode.Create, FileAccess.Write);
-                                    var xsetting = new XmlWriterSettings()
-                                    {
-                                        CloseOutput = false,
-                                        Indent = true,
-                                        Encoding = Encoding.UTF8,
-                                        CheckCharacters = true,
-                                        NewLineChars = Environment.NewLine,
-                                        NewLineOnAttributes = false,
-                                    };
-                                    var writer = XmlWriter.Create(fs, xsetting);
-                                    writer.WriteStartDocument(true);
-                                    img.Node.DumpAsXml(writer);
-                                    writer.WriteEndDocument();
-                                    writer.Close();
-                                    cnt++;
-                                }
-                                catch (Exception ex)
-                                {
-                                    MessageBoxEx.Show(ex.ToString(), "오류");
-                                }
-                                finally
-                                {
-                                    if (fs != null)
-                                    {
-                                        fs.Close();
-                                    }
-                                }
-                            }
-                        }
+                    labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
+                }
+                catch (Exception ex)
+                {
+                    MessageBoxEx.Show(ex.ToString(), "오류");
+                }
+                finally
+                {
+                    if (fs != null)
+                    {
+                        fs.Close();
                     }
                 }
-                QueryPerformance.End();
-                MessageBoxEx.Show("Extracted " + cnt + " in " + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms");
             }
-            
         }
 
         private void tsmi1UpdateStringLinker_Click(object sender, EventArgs e)
@@ -2457,17 +2384,17 @@ namespace WzComparerR2
 
             switch (comboBoxItem1.SelectedIndex)
             {
-                case 0: //wzNode
+                case 0:
                     searchAdvTree(advTree1, 0, textBoxItemSearchWz.Text, checkBoxItemExact1.Checked, checkBoxItemRegex1.Checked);
                     break;
-                case 1: //imageNode
+                case 1:
                     searchAdvTree(advTree2, 0, textBoxItemSearchWz.Text, checkBoxItemExact1.Checked, checkBoxItemRegex1.Checked);
                     break;
-                case 2: //imageValue
+                case 2:
                     searchAdvTree(advTree3, 1, textBoxItemSearchWz.Text, checkBoxItemExact1.Checked, checkBoxItemRegex1.Checked);
                     break;
                 case 3: //full path
-                    searchAdvTreeEx(advTree1, 0, 1, textBoxItemSearchWz.Text);
+                    searchAdvTreeFullPath(textBoxItemSearchWz.Text);
                     break;
                 case 4:
                     searchAdvTreeEx(advTree3, 0, 1, textBoxItemSearchWz.Text);
