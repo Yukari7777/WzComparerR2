@@ -567,11 +567,10 @@ namespace WzComparerR2.WzLib
             return wzImg;
         }
 
-        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer)
         {
             object value = node.Value;
             bool dumpRaw = false;//Yukari
-            bool dumpExt = true;//save raw files as external files
 
             if (value == null || value is Wz_Image)
             {
@@ -601,20 +600,7 @@ namespace WzComparerR2.WzLib
                                 writer.WriteAttributeString(attrName, Convert.ToBase64String(data));
                             }
                         }
-                    }
-                }
-                else if (dumpExt)
-                {
-                    for (int i = 0; i < png.ActualPages; i++)
-                    {
-
-                        using (var bmp = png.ExtractPng())
-                        {
-                            string fname = dir + "\\" + node.FullPathToFile.Replace('\\', '.') + (i > 0 ? "." + (i + 1).ToString() : "") + ".png";
-                            bmp.Save(fname);
-                        }
-                    }
-                    writer.WriteAttributeString("file", node.FullPathToFile.Replace('\\', '.'));
+                    } 
                 }
             }
             else if (value is Wz_Uol uol)
@@ -641,7 +627,7 @@ namespace WzComparerR2.WzLib
                         data = new byte[sound.DataLength];
                         sound.CopyTo(data, 0);
                     }
-                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                    writer.WriteAttributeString("value", Convert.ToBase64String(data)); 
                 }
             }
             else if (value is Wz_Convex contex)
@@ -664,7 +650,7 @@ namespace WzComparerR2.WzLib
                 {
                     byte[] data = new byte[rawdata.Length];
                     rawdata.CopyTo(data, 0);
-                    writer.WriteAttributeString("value", Convert.ToBase64String(data));
+                    writer.WriteAttributeString("value", Convert.ToBase64String(data)); 
                 }
             }
             else if (value is Wz_Video video)
@@ -690,7 +676,7 @@ namespace WzComparerR2.WzLib
             //输出子节点
             foreach (var child in node.Nodes)
             {
-                DumpAsXml(child, writer, dir);
+                DumpAsXml(child, writer);
             }
 
             //结束标识
