@@ -570,7 +570,7 @@ namespace WzComparerR2.WzLib
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
         {
             object value = node.Value;
-            bool dumpRaw = false;//Yukari
+            bool dumpRaw = false;
             bool dumpExt = true;//save raw files as external files
 
             if (value == null || value is Wz_Image)
@@ -610,7 +610,13 @@ namespace WzComparerR2.WzLib
 
                         using (var bmp = png.ExtractPng())
                         {
-                            string fname = dir + "\\" + node.FullPathToFile.Replace('\\', '.') + (i > 0 ? "." + (i + 1).ToString() : "") + ".png";
+                            string path = dir + "\\" + node.ParentNode.FullPathToFile + "\\" + (i > 0 ? i.ToString() + "\\" : null);
+                            if (!Directory.Exists(path)) 
+                            {
+                                Directory.CreateDirectory(path);
+                            }
+
+                            string fname = path + node.Text + ".png";
                             bmp.Save(fname);
                         }
                     }
