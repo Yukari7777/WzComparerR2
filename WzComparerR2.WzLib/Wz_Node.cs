@@ -572,6 +572,7 @@ namespace WzComparerR2.WzLib
             object value = node.Value;
             bool dumpRaw = false;
             bool dumpExt = true;//save raw files as external files
+            bool leaveRef = false;
 
             if (value == null || value is Wz_Image)
             {
@@ -620,7 +621,7 @@ namespace WzComparerR2.WzLib
                             bmp.Save(fname);
                         }
                     }
-                    writer.WriteAttributeString("file", node.FullPathToFile.Replace('\\', '.'));
+                    if (leaveRef) writer.WriteAttributeString("file", node.FullPathToFile.Replace('\\', '.'));
                 }
             }
             else if (value is Wz_Uol uol)

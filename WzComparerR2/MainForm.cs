@@ -2364,7 +2364,7 @@ namespace WzComparerR2
                     foreach (Node node in findNextNode(advTree1))
                     {
                         Wz_File wzf = node?.AsWzNode().GetNodeWzFile();
-                        if (wzf.Type != Wz_Type.Skill) continue;
+                        //if (wzf.Type != Wz_Type.Skill) continue;
                         //if (cnt > 2) break;
 
                         if (node != null)
@@ -2418,9 +2418,9 @@ namespace WzComparerR2
                             }
                         }
                     }
+                    QueryPerformance.End();
+                    MessageBoxEx.Show("Extracted " + cnt + " in " + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms");
                 }
-                QueryPerformance.End();
-                MessageBoxEx.Show("Extracted " + cnt + " in " + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms");
             }
             
         }
