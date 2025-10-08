@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Xml;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace WzComparerR2.WzLib
 {
@@ -702,6 +703,142 @@ namespace WzComparerR2.WzLib
 
             //结束标识
             writer.WriteEndElement();
+        }
+        public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir)
+        {
+            object value = node.Value;
+            bool dumpRaw = false;
+            bool dumpExt = true;//save raw files as external files
+            bool leaveRef = false;
+
+            writer.WriteStartObject();
+            writer.WriteString("name", node.Text);
+
+            if (value == null || value is Wz_Image)
+            {
+                writer.WriteString("type", "dir");
+            }
+            else if (value is Wz_Png png)
+            {
+                writer.WriteString("type", "png");
+                writer.WriteNumber("width", png.Width);
+                writer.WriteNumber("height", png.Height);
+                writer.WriteNumber("format", (int)png.Format);
+                writer.WriteNumber("scale", png.Scale);
+                writer.WriteNumber("pages", png.Pages);
+                if (dumpRaw)
+                {
+                    for (int i = 0; i < png.ActualPages; i++)
+                    {
+                        using (var bmp = png.ExtractPng())
+                        {
+                            using (var ms = new MemoryStream())
+                            {
+                                bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                byte[] data = ms.ToArray();
+                                string attrName = "value" + (i > 0 ? (i + 1).ToString() : null);
+                                writer.WriteString(attrName, Convert.ToBase64String(data));
+                            }
+                        }
+                    }
+                }
+                else if (dumpExt)
+                {
+                    for (int i = 0; i < png.ActualPages; i++)
+                    {
+                        using (var bmp = png.ExtractPng())
+                        {
+                            string path = dir + "\\" + node.ParentNode.FullPathToFile + "\\" + (i > 0 ? i.ToString() + "\\" : null);
+                            if (!Directory.Exists(path))
+                            {
+                                Directory.CreateDirectory(path);
+                            }
+
+                            string fname = path + node.Text + ".png";
+                            bmp.Save(fname);
+                        }
+                    }
+                    if (leaveRef)
+                    {
+                        writer.WriteString("file", node.FullPathToFile.Replace('\\', '.'));
+                    }
+                }
+            }
+            else if (value is Wz_Uol uol)
+            {
+                writer.WriteString("type", "uol");
+                writer.WriteString("value", uol.Uol);
+            }
+            else if (value is Wz_Vector vector)
+            {
+                writer.WriteString("type", "vector");
+                writer.WriteString("value", $"{vector.X}, {vector.Y}");
+            }
+            else if (value is Wz_Sound sound)
+            {
+                writer.WriteString("type", "sound");
+                if (dumpRaw)
+                {
+                    byte[] data = sound.ExtractSound();
+                    if (data == null)
+                    {
+                        data = new byte[sound.DataLength];
+                        sound.CopyTo(data, 0);
+                    }
+                    writer.WriteString("value", Convert.ToBase64String(data));
+                }
+            }
+            else if (value is Wz_Convex contex)
+            {
+                writer.WriteString("type", "convex");
+                writer.WritePropertyName("points");
+                writer.WriteStartArray();
+                foreach (var point in contex.Points)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("value", $"{point.X}, {point.Y}");
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
+            else if (value is Wz_RawData rawdata)
+            {
+                writer.WriteString("type", "rawdata");
+                writer.WriteNumber("length", rawdata.Length);
+                if (dumpRaw)
+                {
+                    byte[] data = new byte[rawdata.Length];
+                    rawdata.CopyTo(data, 0);
+                    writer.WriteString("value", Convert.ToBase64String(data));
+                }
+            }
+            else if (value is Wz_Video video)
+            {
+                writer.WriteString("type", "video");
+                writer.WriteNumber("length", video.Length);
+                if (dumpRaw)
+                {
+                    byte[] data = new byte[video.Length];
+                    video.CopyTo(data, 0);
+                    writer.WriteString("value", Convert.ToBase64String(data));
+                }
+            }
+            else if (value != null)
+            {
+                var tag = value.GetType().Name.ToLower();
+                writer.WriteString("type", tag);
+                writer.WriteString("value", value.ToString());
+            }
+
+            writer.WritePropertyName("children");
+            writer.WriteStartArray();
+            foreach (var child in node.Nodes)
+            {
+                DumpAsJson(child, writer, dir);
+            }
+            writer.WriteEndArray();
+
+            writer.WriteEndObject();
         }
 
         public static void SortByImgID(this Wz_Node.WzNodeCollection nodes)

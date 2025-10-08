@@ -8,6 +8,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -2443,6 +2445,53 @@ namespace WzComparerR2
             else
             {
                 MessageBoxEx.Show("StringLinker 업데이트에 실패했습니다.", "오류");
+            }
+        }
+        private void tsmi1DumpAsJson_Click(object sender, EventArgs e)
+        {
+            Wz_Image img = advTree1.SelectedNode?.AsWzNode()?.GetValue<Wz_Image>();
+            if (img == null)
+            {
+                MessageBoxEx.Show("JSON로 내보낼 img를 선택하세요.");
+                return;
+            }
+
+            SaveFileDialog dlg = new SaveFileDialog();
+            string fname = img.Node.FullPathToFile.Replace('\\', '.');
+            dlg.DefaultExt = ".json";
+            dlg.Filter = "JSON (*.json)|*.json";
+            dlg.FileName = fname + ".json";
+            if (dlg.ShowDialog() == DialogResult.OK)
+            {
+                string dir = Path.GetDirectoryName(dlg.FileName);
+                FileStream fs = null;
+                try
+                {
+                    fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write);
+                    var options = new JsonWriterOptions()
+                    {
+                        Indented = true,
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                        SkipValidation = false,
+                    };
+                    using (var writer = new Utf8JsonWriter(fs, options))
+                    {
+                        img.Node.DumpAsJson(writer, dir);
+                    }
+
+                    labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
+                }
+                catch (Exception ex)
+                {
+                    MessageBoxEx.Show(ex.ToString(), "오류");
+                }
+                finally
+                {
+                    if (fs != null)
+                    {
+                        fs.Close();
+                    }
+                }
             }
         }
         #endregion
