@@ -714,11 +714,7 @@ namespace WzComparerR2.WzLib
             writer.WriteStartObject();
             writer.WriteString("name", node.Text);
 
-            if (value == null || value is Wz_Image)
-            {
-                writer.WriteString("type", "dir");
-            }
-            else if (value is Wz_Png png)
+            if (value is Wz_Png png)
             {
                 writer.WriteString("type", "png");
                 writer.WriteNumber("width", png.Width);
@@ -772,7 +768,11 @@ namespace WzComparerR2.WzLib
             else if (value is Wz_Vector vector)
             {
                 writer.WriteString("type", "vector");
-                writer.WriteString("value", $"{vector.X}, {vector.Y}");
+                writer.WritePropertyName("value");
+                writer.WriteStartObject();
+                writer.WriteNumber("x", vector.X);
+                writer.WriteNumber("y", vector.Y);
+                writer.WriteEndObject();
             }
             else if (value is Wz_Sound sound)
             {
@@ -796,7 +796,8 @@ namespace WzComparerR2.WzLib
                 foreach (var point in contex.Points)
                 {
                     writer.WriteStartObject();
-                    writer.WriteString("value", $"{point.X}, {point.Y}");
+                    writer.WriteNumber("x", point.X);
+                    writer.WriteNumber("y", point.Y);
                     writer.WriteEndObject();
                 }
                 writer.WriteEndArray();
@@ -825,20 +826,93 @@ namespace WzComparerR2.WzLib
             }
             else if (value != null)
             {
-                var tag = value.GetType().Name.ToLower();
-                writer.WriteString("type", tag);
-                writer.WriteString("value", value.ToString());
+                if (!TryWritePrimitiveJsonValue(writer, value))
+                {
+                    var tag = value.GetType().Name.ToLowerInvariant();
+                    writer.WriteString("type", tag);
+                    writer.WriteString("value", value.ToString());
+                }
+            }
+            else if (node.Nodes.Count == 0)
+            {
+                writer.WriteNull("value");
             }
 
-            writer.WritePropertyName("children");
-            writer.WriteStartArray();
-            foreach (var child in node.Nodes)
+            if (node.Nodes.Count > 0)
             {
-                DumpAsJson(child, writer, dir);
+                writer.WritePropertyName("children");
+                writer.WriteStartArray();
+                foreach (var child in node.Nodes)
+                {
+                    DumpAsJson(child, writer, dir);
+                }
+                writer.WriteEndArray();
             }
-            writer.WriteEndArray();
 
             writer.WriteEndObject();
+        }
+
+        private static bool TryWritePrimitiveJsonValue(Utf8JsonWriter writer, object value)
+        {
+            switch (value)
+            {
+                case string s:
+                    writer.WriteString("value", s);
+                    return true;
+                case bool b:
+                    writer.WriteBoolean("value", b);
+                    return true;
+                case byte number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case sbyte number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case short number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case ushort number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case int number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case uint number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case long number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case ulong number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case float number when float.IsFinite(number):
+                    writer.WriteNumber("value", number);
+                    return true;
+                case float number:
+                    writer.WriteString("value", number.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    return true;
+                case double number when double.IsFinite(number):
+                    writer.WriteNumber("value", number);
+                    return true;
+                case double number:
+                    writer.WriteString("value", number.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    return true;
+                case decimal number:
+                    writer.WriteNumber("value", number);
+                    return true;
+                case char ch:
+                    writer.WriteString("value", ch.ToString());
+                    return true;
+                case DateTime dateTime:
+                    writer.WriteString("value", dateTime.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+                    return true;
+                case TimeSpan timeSpan:
+                    writer.WriteString("value", timeSpan.ToString("c", System.Globalization.CultureInfo.InvariantCulture));
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public static void SortByImgID(this Wz_Node.WzNodeCollection nodes)
