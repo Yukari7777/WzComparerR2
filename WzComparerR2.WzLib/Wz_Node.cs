@@ -892,7 +892,7 @@ namespace WzComparerR2.WzLib
                 case float number:
                     writer.WriteString("value", number.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     return true;
-                case double number when double.IsFinite(number):
+                case double number when double.IsFinite.IsFinite(number):
                     writer.WriteNumber("value", number);
                     return true;
                 case double number:
