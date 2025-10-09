@@ -4,6 +4,12 @@ const FileRef = 'string' as const // placeholder for external file reference
 export type WzVector = [x: number, y:number]
 export type WzConvex = WzVector[]
 export type WzNull = {} // expose key
+
+export type WzUol = {
+  type: 'uol'
+  value: string
+}
+
 export interface WzDir {
   [k: string]: any
 }
@@ -24,36 +30,28 @@ export const WzTextureFormat = {
 } as const
 
 export type WzPng = WzDir & {
-  type: 'png',
-  format: keyof typeof WzTextureFormat,
-  file: typeof FileRef //parse _outlink to this
-  
-  width?: number,
-  height?: number,
-  scale?: number,
+  type: 'png'
+  format?: keyof typeof WzTextureFormat
+  scale?: number
+  pages?: number
 
-  // multipage
-  pages?: number,
-}
-
-export type WzUol = WzDir & {
-  type: 'uol',
-  value: string
+  //value will be parsed from its child node
+  file?: typeof FileRef //_outlink should be parsed to this
 }
 
 //TODO: add meta from WCR2 if needed
 export type WzSound = WzDir & {
-  type: 'sound',
-  file: typeof FileRef
+  type: 'sound'
+  file?: typeof FileRef
 }
 
 export type WzVideo = WzDir & {
-  type: 'video',
-  file: typeof FileRef
+  type: 'video'
+  file?: typeof FileRef
 }
 
 export type WzRaw = WzDir & {
-  type: 'raw',
-  file: typeof FileRef,
+  type: 'raw'
   size: number
+  file?: typeof FileRef
 }
