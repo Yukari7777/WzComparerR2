@@ -2305,8 +2305,8 @@ namespace WzComparerR2
 
         private void tsmi1DumpAsXml_Click(object sender, EventArgs e)
         {
-            bool flaggg = false;
-            if (!flaggg) {
+            bool ggg_dumpall = false;
+            if (!ggg_dumpall) {
                 Wz_Image img = advTree1.SelectedNode?.AsWzNode()?.GetValue<Wz_Image>();
                 if (img == null)
                 {
@@ -2366,7 +2366,7 @@ namespace WzComparerR2
                     foreach (Node node in findNextNode(advTree1))
                     {
                         Wz_File wzf = node?.AsWzNode().GetNodeWzFile();
-                        //if (wzf.Type != Wz_Type.Skill) continue;
+                        if (wzf.Type != Wz_Type.Mob) continue;
                         //if (cnt > 2) break;
 
                         if (node != null)
@@ -2389,21 +2389,18 @@ namespace WzComparerR2
                                 FileStream fs = null;
                                 try
                                 {
-                                    fs = new FileStream(dir + ".xml", FileMode.Create, FileAccess.Write);
-                                    var xsetting = new XmlWriterSettings()
+
+                                    fs = new FileStream(dir + ".json", FileMode.Create, FileAccess.Write);
+                                    var options = new JsonWriterOptions()
                                     {
-                                        CloseOutput = false,
-                                        Indent = true,
-                                        Encoding = Encoding.UTF8,
-                                        CheckCharacters = true,
-                                        NewLineChars = Environment.NewLine,
-                                        NewLineOnAttributes = false,
+                                        Indented = true,
+                                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                                        SkipValidation = false,
                                     };
-                                    var writer = XmlWriter.Create(fs, xsetting);
-                                    writer.WriteStartDocument(true);
-                                    img.Node.DumpAsXml(writer, dir);
-                                    writer.WriteEndDocument();
-                                    writer.Close();
+                                    using (var writer = new Utf8JsonWriter(fs, options))
+                                    {
+                                        img.Node.DumpAsJson(writer, dir);
+                                    }
                                     cnt++;
                                 }
                                 catch (Exception ex)

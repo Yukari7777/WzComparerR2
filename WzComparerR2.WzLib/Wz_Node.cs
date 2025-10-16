@@ -721,7 +721,7 @@ namespace WzComparerR2.WzLib
         private static void WriteNodeValue(Wz_Node node, Utf8JsonWriter writer, string dir)
         {
             const bool dumpRaw = false;
-            const bool dumpExt = true;
+            const bool dumpExt = false;
             const bool leaveRef = false;
 
             object value = node.Value;
