@@ -253,6 +253,7 @@
             this.toolStripMenuItem6 = new System.Windows.Forms.ToolStripSeparator();
             this.tsmi1Export = new System.Windows.Forms.ToolStripMenuItem();
             this.tsmi1DumpAsXml = new System.Windows.Forms.ToolStripMenuItem();
+            this.tsmi1DumpAsJson = new System.Windows.Forms.ToolStripMenuItem();
             this.tsmi1UpdateStringLinker = new System.Windows.Forms.ToolStripMenuItem();
             this.nodeConnector1 = new DevComponents.AdvTree.NodeConnector();
             this.elementStyle1 = new DevComponents.DotNetBar.ElementStyle();
@@ -2991,9 +2992,10 @@
             this.tsmi1Sort,
             this.toolStripMenuItem5,
             this.tsmi1Export,
-            this.tsmi1DumpAsXml});
+            this.tsmi1DumpAsXml,
+            this.tsmi1DumpAsJson});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(155, 76);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(155, 98);
             // 
             // tsmi1Sort
             // 
@@ -3025,6 +3027,13 @@
             this.tsmi1DumpAsXml.Size = new System.Drawing.Size(154, 22);
             this.tsmi1DumpAsXml.Text = "XML로 내보내기(&D)";
             this.tsmi1DumpAsXml.Click += new System.EventHandler(this.tsmi1DumpAsXml_Click);
+            //
+            // tsmi1DumpAsJson
+            //
+            this.tsmi1DumpAsJson.Name = "tsmi1DumpAsJson";
+            this.tsmi1DumpAsJson.Size = new System.Drawing.Size(154, 22);
+            this.tsmi1DumpAsJson.Text = "JSON로 내보내기(&J)";
+            this.tsmi1DumpAsJson.Click += new System.EventHandler(this.tsmi1DumpAsJson_Click);
             // 
             // tsmi1UpdateStringLinker
             // 
@@ -3582,6 +3591,7 @@
         private DevComponents.DotNetBar.ComboBoxItem cmbItemAniNames;
         private DevComponents.DotNetBar.ButtonItem buttonItemUpdate;
         private System.Windows.Forms.ToolStripMenuItem tsmi1DumpAsXml;
+        private System.Windows.Forms.ToolStripMenuItem tsmi1DumpAsJson;
         private System.Windows.Forms.ToolStripMenuItem tsmi1UpdateStringLinker;
         private DevComponents.Editors.ComboItem comboItem18;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkResolvePngLink;
