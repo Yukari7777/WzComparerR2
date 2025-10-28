@@ -31,6 +31,7 @@
             this.btnItemShow = new DevComponents.DotNetBar.ButtonItem();
             this.btnItemDel = new DevComponents.DotNetBar.ButtonItem();
             this.btnItemReset = new DevComponents.DotNetBar.ButtonItem();
+            this.btnChangePrismIndex = new DevComponents.DotNetBar.ButtonItem();
             this.chkShowEffect = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoMixColor0 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoMixColor1 = new DevComponents.DotNetBar.CheckBoxItem();
@@ -40,6 +41,7 @@
             this.rdoMixColor5 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoMixColor6 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoMixColor7 = new DevComponents.DotNetBar.CheckBoxItem();
+            this.rdoMixColor8 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoPrismType0 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoPrismType1 = new DevComponents.DotNetBar.CheckBoxItem();
             this.rdoPrismType2 = new DevComponents.DotNetBar.CheckBoxItem();
@@ -67,8 +69,15 @@
             // 
             // btnItemReset
             // 
+            this.btnItemReset.AutoCollapseOnClick = false;
             this.btnItemReset.Name = "btnItemReset";
             this.btnItemReset.Text = "설정 초기화";
+            // 
+            // btnChangePrismIndex
+            // 
+            this.btnChangePrismIndex.AutoCollapseOnClick = false;
+            this.btnChangePrismIndex.Name = "btnChangePrismIndex";
+            this.btnChangePrismIndex.Text = "일반 프리즘";
             // 
             // chkShowEffect
             // 
@@ -133,6 +142,13 @@
             this.rdoMixColor7.CheckBoxStyle = DevComponents.DotNetBar.eCheckBoxStyle.RadioButton;
             this.rdoMixColor7.Name = "rdoMixColor7";
             this.rdoMixColor7.Text = "믹스 컬러: ";
+            // 
+            // rdoMixColor8
+            // 
+            this.rdoMixColor8.AutoCollapseOnClick = false;
+            this.rdoMixColor8.CheckBoxStyle = DevComponents.DotNetBar.eCheckBoxStyle.RadioButton;
+            this.rdoMixColor8.Name = "rdoMixColor8";
+            this.rdoMixColor8.Text = "믹스 컬러: ";
             // 
             // rdoPrismType0
             // 
@@ -250,6 +266,7 @@
         public DevComponents.DotNetBar.ButtonItem btnItemShow;
         public DevComponents.DotNetBar.ButtonItem btnItemDel;
         public DevComponents.DotNetBar.ButtonItem btnItemReset;
+        public DevComponents.DotNetBar.ButtonItem btnChangePrismIndex;
         public DevComponents.DotNetBar.CheckBoxItem chkShowEffect;
         public DevComponents.DotNetBar.CheckBoxItem rdoMixColor0;
         public DevComponents.DotNetBar.CheckBoxItem rdoMixColor1;
@@ -259,6 +276,7 @@
         public DevComponents.DotNetBar.CheckBoxItem rdoMixColor5;
         public DevComponents.DotNetBar.CheckBoxItem rdoMixColor6;
         public DevComponents.DotNetBar.CheckBoxItem rdoMixColor7;
+        public DevComponents.DotNetBar.CheckBoxItem rdoMixColor8;
         public DevComponents.DotNetBar.CheckBoxItem rdoPrismType0;
         public DevComponents.DotNetBar.CheckBoxItem rdoPrismType1;
         public DevComponents.DotNetBar.CheckBoxItem rdoPrismType2;

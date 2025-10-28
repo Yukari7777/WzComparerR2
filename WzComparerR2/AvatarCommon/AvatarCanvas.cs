@@ -33,6 +33,23 @@ namespace WzComparerR2.AvatarCommon
             this.GroupChair = "0";
             this.ShowWeaponEffect = true;
             this.ShowWeaponJumpEffect = true;
+            this.HideBody = false;
+
+            SetRing = new Action<AvatarPart>[]
+            {
+                part => this.Ring1 = part,
+                part => this.Ring2 = part,
+                part => this.Ring3 = part,
+                part => this.Ring4 = part
+            };
+
+            GetRing = new Func<AvatarPart>[]
+            {
+                () => this.Ring1,
+                () => this.Ring2,
+                () => this.Ring3,
+                () => this.Ring4
+            };
         }
 
         public List<string> ZMap { get; private set; }
@@ -53,14 +70,17 @@ namespace WzComparerR2.AvatarCommon
         public bool ShowHairShade { get; set; }
         public bool ShowWeaponEffect { get; set; }
         public bool ShowWeaponJumpEffect { get; set; }
+        public bool HideBody { get; set; }
         public bool ApplyBRM { get; set; }
         public int WeaponIndex { get; set; }
         public int WeaponType { get; set; }
         public int EarType { get; set; }
         public string CapType { get; set; }
         public string GroupChair { get; set; }
+        public Action<AvatarPart>[] SetRing { get; }
+        public Func<AvatarPart>[] GetRing { get; }
 
-        public const int PartLength = 25;
+        public const int PartLength = 29;
         public const int LayerSlotLength = PartLength + 4;
         public const int IndexChairLayer1 = 18;
         public const int IndexChairLayer2 = PartLength + 0;
@@ -401,6 +421,22 @@ namespace WzComparerR2.AvatarCommon
                 case GearType.shoulderPad: this.ShoulderPad = part; break;
                 case GearType.pocket: this.Pocket = part; break;
                 case GearType.emblem: this.Emblem = part; break;
+                case GearType.ring:
+                    bool added = false;
+                    for (var i = 0; i < 4; i++) // ring slot == 4
+                    {
+                        if (GetRing[i]() == null)
+                        {
+                            SetRing[i](part);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (!added)
+                    {
+                        SetRing[0](part);
+                    }
+                    break;
                 default:
                     if (Gear.IsWeapon(gearType))
                     {
@@ -467,6 +503,9 @@ namespace WzComparerR2.AvatarCommon
             part.GroupActionNode = GetGroupNode(imgNode);
             part.GroupCount = CheckGroupChairCount(part.GroupActionNode);
             part.LoadGroupTaming();
+
+            //part.RandomChairInfoNode = GetRandomChairInfoNode(imgNode);
+            //part.RandomChairCount = CheckRandomChairCount(part.GroupActionNode);
 
             return part;
         }
@@ -541,6 +580,39 @@ namespace WzComparerR2.AvatarCommon
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// 의자 아이템이 랜덤 의자인지 확인합니다.
+        /// </summary>
+        /// <returns>랜덤 의자의 정보가 담긴 Wz_Node. (customChair/randomChairInfo)</returns>
+        private Wz_Node GetRandomChairInfoNode(Wz_Node chairNode)
+        {
+            foreach (var child in chairNode.FindNodeByPath("info").Nodes ?? Enumerable.Empty<Wz_Node>())
+            {
+                if (Regex.Match(child.Text, "customChair", RegexOptions.IgnoreCase).Success)
+                {
+                    foreach (var customChairNode in child.Nodes ?? Enumerable.Empty<Wz_Node>())
+                    {
+                        foreach (var dir in new[] { "randomChairInfo" })
+                        {
+                            if (customChairNode.Text.Contains(dir))
+                            {
+                                return customChairNode;
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 랜덤 의자의 종류 개수를 찾습니다.
+        /// </summary>
+        private int CheckRandomChairCount(Wz_Node randomChairNode)
+        {
+            return randomChairNode?.Nodes?.Count ?? 0;
         }
 
         /// <summary>
@@ -690,6 +762,17 @@ namespace WzComparerR2.AvatarCommon
                         frame.Frame = frameIndex;
                         return frame;
                     }
+                }
+            }
+            else
+            {
+                if (emotion == "default")
+                {
+                    return new ActionFrame() { Action = emotion };
+                }
+                else
+                {
+                    return new ActionFrame(emotion, 0);
                 }
             }
 
@@ -921,6 +1004,27 @@ namespace WzComparerR2.AvatarCommon
                 }
             }
 
+            if (this.FaceAccessory != null && this.FaceAccessory.Visible)
+            {
+                var fixedEmotion = this.FaceAccessory.Node.FindNodeByPath(@"info\fixedEmotion").GetValueEx<string>(null);
+                if (!string.IsNullOrEmpty(fixedEmotion))
+                {
+                    var info = fixedEmotion.Split('/');
+                    emotionName = info[0];
+                    faceFrame = 0;
+                    if (info.Length > 1)
+                    {
+                        int.TryParse(info[1], out faceFrame);
+                    }
+                }
+            }
+
+            if (this.HideBody) // hide body chkbox
+            {
+                actionName = "hideBody";
+                bodyFrame = 0;
+            }
+
             if (!string.IsNullOrEmpty(actionName))
             {
                 bodyAction = GetActionFrame(actionName, bodyFrame);
@@ -981,18 +1085,18 @@ namespace WzComparerR2.AvatarCommon
         public Bone CreateFrame(ActionFrame bodyAction, ActionFrame faceAction, ActionFrame tamingAction, ActionFrame[] effectActions)
         {
             //获取所有部件
-            Tuple<Wz_Node, Wz_Node, int, PrismData>[] playerNodes = LinkPlayerParts(bodyAction, faceAction);
-            Tuple<Wz_Node, Wz_Node, int, PrismData>[] tamingNodes = LinkTamingParts(tamingAction);
-            List<Tuple<Wz_Node, Wz_Node, int, PrismData>> effectNodes = []; // find effect nodes
-            List<Tuple<Wz_Node, Wz_Node, int, PrismData>> chairEffectNodes = []; // find chair effect nodes
-            List<Tuple<Wz_Node, Wz_Node, int, PrismData>> chairNodes = []; // find chair nodes
-            List<Tuple<Wz_Node, Wz_Node, int, PrismData>> groupTamingNodes = []; // find group taming nodes
+            Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>[] playerNodes = LinkPlayerParts(bodyAction, faceAction);
+            Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>[] tamingNodes = LinkTamingParts(tamingAction);
+            List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> effectNodes = []; // find effect nodes
+            List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> chairEffectNodes = []; // find chair effect nodes
+            List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> chairNodes = []; // find chair nodes
+            List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> groupTamingNodes = []; // find group taming nodes
             for (int i = 0; i < PartLength; i++)
             {
                 if (this.Parts[i] != null)
                 {
-                    List<Tuple<Wz_Node, Wz_Node, int, PrismData>> tmpNode = null;
-                    PrismData prismData = this.Parts[i].PrismData;
+                    List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> tmpNode = null;
+                    PrismDataCollection prismData = this.Parts[i].PrismData;
                     switch (i)
                     {
                         case IndexChairLayer1:
@@ -1104,11 +1208,11 @@ namespace WzComparerR2.AvatarCommon
             }
         }
 
-        private void CreateBone(Bone root, Tuple<Wz_Node, Wz_Node, int, PrismData>[] frameNodes, bool? bodyFace = null, bool groupTamingNode = false, bool effectNode = false, bool chairNode = false, bool groupTamingExists = false)
+        private void CreateBone(Bone root, Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>[] frameNodes, bool? bodyFace = null, bool groupTamingNode = false, bool effectNode = false, bool chairNode = false, bool groupTamingExists = false)
         {
             bool face = true;
 
-            foreach (Tuple<Wz_Node, Wz_Node, int, PrismData> partNode in frameNodes)
+            foreach (Tuple<Wz_Node, Wz_Node, int, PrismDataCollection> partNode in frameNodes)
             {
                 Wz_Node linkPartNode = partNode.Item1;
                 while (linkPartNode.Value is Wz_Uol)
@@ -1137,10 +1241,10 @@ namespace WzComparerR2.AvatarCommon
                     else
                     {
                         skin.Image = BitmapOrigin.CreateFromNode(linkPartNode, PluginBase.PluginManager.FindWz);
-                        PrismData prismData = partNode.Item4;
+                        PrismDataCollection prismData = partNode.Item4;
                         if (prismData.Valid)
                         {
-                            var prism = Prism.Apply(skin.Image, prismData, true);
+                            var prism = Prism.Apply(skin.Image, prismData.Get(PrismDataCollection.PrismDataType.Default), true);
                             if (prism.Bitmap != null)
                             {
                                 skin.Image.Bitmap.Dispose();
@@ -1237,6 +1341,7 @@ namespace WzComparerR2.AvatarCommon
                     }
                     if (linkNode.Value is Wz_Png)
                     {
+                        PrismDataCollection.PrismDataType pidx = 0;
                         string defaultCapType = "default";
                         string capType = (this.Cap?.Visible ?? false) ? this.CapType : defaultCapType;
 
@@ -1286,6 +1391,9 @@ namespace WzComparerR2.AvatarCommon
                             case "effect":
                                 if (childNode.FullPathToFile.StartsWith("Character\\Weapon"))
                                 {
+                                    if (partNode.Item4.IsValid(PrismDataCollection.PrismDataType.WeaponEffect))
+                                        pidx = PrismDataCollection.PrismDataType.WeaponEffect;
+
                                     if (childNode.FullPathToFile.Contains("jump"))
                                     {
                                         if (!this.ShowWeaponJumpEffect)
@@ -1364,10 +1472,10 @@ namespace WzComparerR2.AvatarCommon
                                 skin.Image.Bitmap.Dispose();
                                 skin.Image = mix;
                             }
-                            PrismData prismData = partNode.Item4;
+                            PrismDataCollection prismData = partNode.Item4;
                             if (prismData.Valid)
                             {
-                                var prism = Prism.Apply(skin.Image, prismData);
+                                var prism = Prism.Apply(skin.Image, prismData.Get(pidx));
                                 if (prism.Bitmap != null)
                                 {
                                     skin.Image.Bitmap.Dispose();
@@ -1698,10 +1806,10 @@ namespace WzComparerR2.AvatarCommon
             }
         }
 
-        private Tuple<Wz_Node, Wz_Node, int, PrismData>[] LinkPlayerParts(ActionFrame bodyAction, ActionFrame faceAction)
+        private Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>[] LinkPlayerParts(ActionFrame bodyAction, ActionFrame faceAction)
         {
             //寻找所有部件
-            List<Tuple<Wz_Node, Wz_Node, int, PrismData>> partNode = new List<Tuple<Wz_Node, Wz_Node, int, PrismData>>();
+            List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> partNode = new List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>>();
 
             //链接人
             if (this.Body != null && this.Head != null && bodyAction != null
@@ -1749,11 +1857,11 @@ namespace WzComparerR2.AvatarCommon
                     {
                         if (this.Face.IsMixing)
                         {
-                            partNode.Add(Tuple.Create(FindActionFrameNode(this.Face.Node, faceAction), FindActionFrameNode(this.Face.MixNodes[this.Face.MixColor], faceAction), this.Face.MixOpacity, new PrismData()));
+                            partNode.Add(Tuple.Create(FindActionFrameNode(this.Face.Node, faceAction), FindActionFrameNode(this.Face.MixNodes[this.Face.MixColor], faceAction), this.Face.MixOpacity, new PrismDataCollection()));
                         }
                         else
                         {
-                            partNode.Add(Tuple.Create(FindActionFrameNode(this.Face.Node, faceAction), (Wz_Node)null, 100, new PrismData()));
+                            partNode.Add(Tuple.Create(FindActionFrameNode(this.Face.Node, faceAction), (Wz_Node)null, 100, new PrismDataCollection()));
                         }
                     }
                 }
@@ -1774,11 +1882,11 @@ namespace WzComparerR2.AvatarCommon
                     }
                     if (this.Hair.IsMixing)
                     {
-                        partNode.Add(Tuple.Create(hairNode, mixHairNode, this.Hair.MixOpacity, new PrismData()));
+                        partNode.Add(Tuple.Create(hairNode, mixHairNode, this.Hair.MixOpacity, new PrismDataCollection()));
                     }
                     else
                     {
-                        partNode.Add(Tuple.Create(hairNode, (Wz_Node)null, 100, new PrismData()));
+                        partNode.Add(Tuple.Create(hairNode, (Wz_Node)null, 100, new PrismDataCollection()));
                     }
                 }
                 //cap
@@ -1827,10 +1935,10 @@ namespace WzComparerR2.AvatarCommon
             return partNode.ToArray();
         }
 
-        private Tuple<Wz_Node, Wz_Node, int, PrismData>[] LinkTamingParts(ActionFrame tamingAction)
+        private Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>[] LinkTamingParts(ActionFrame tamingAction)
         {
             List<Wz_Node> partNode = new List<Wz_Node>();
-            var prismInfo = new PrismData();
+            var prismInfo = new PrismDataCollection();
 
             //链接马
             if (this.Taming != null && this.Taming.Visible && tamingAction != null)
@@ -1849,7 +1957,7 @@ namespace WzComparerR2.AvatarCommon
             return partNode.Select(node => Tuple.Create(node, (Wz_Node)null, 100, prismInfo)).ToArray();
         }
 
-        private List<Tuple<Wz_Node, Wz_Node, int, PrismData>> LinkGroupTamingParts(ActionFrame tamingAction, PrismData prismInfo)
+        private List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> LinkGroupTamingParts(ActionFrame tamingAction, PrismDataCollection prismInfo)
         {
             List<Wz_Node> partNode = new List<Wz_Node>();
 
@@ -1874,7 +1982,7 @@ namespace WzComparerR2.AvatarCommon
             return partNode.Select(node => Tuple.Create(node, (Wz_Node)null, 100, prismInfo)).ToList();
         }
 
-        private List<Tuple<Wz_Node, Wz_Node, int, PrismData>> LinkEffectParts(ActionFrame aFrame, Wz_Node effNode, bool visible, PrismData prismInfo) // find effect nodes
+        private List<Tuple<Wz_Node, Wz_Node, int, PrismDataCollection>> LinkEffectParts(ActionFrame aFrame, Wz_Node effNode, bool visible, PrismDataCollection prismInfo) // find effect nodes
         {
             List<Wz_Node> partNode = new List<Wz_Node>();
 
@@ -2326,12 +2434,48 @@ namespace WzComparerR2.AvatarCommon
         }
 
         /// <summary>
-        /// Pocket
+        /// Emblem
         /// </summary>
         public AvatarPart Emblem //119
         {
             get { return this.Parts[24]; }
             set { this.Parts[24] = value; }
+        }
+
+        /// <summary>
+        /// Ring1
+        /// </summary>
+        public AvatarPart Ring1 //111
+        {
+            get { return this.Parts[25]; }
+            set { this.Parts[25] = value; }
+        }
+
+        /// <summary>
+        /// Ring2
+        /// </summary>
+        public AvatarPart Ring2 //111
+        {
+            get { return this.Parts[26]; }
+            set { this.Parts[26] = value; }
+        }
+
+        /// <summary>
+        /// Ring3
+        /// </summary>
+        public AvatarPart Ring3 //111
+        {
+            get { return this.Parts[27]; }
+            set { this.Parts[27] = value; }
+        }
+
+        /// <summary>
+        /// Ring4
+        /// </summary>
+        public AvatarPart Ring4 //111
+        {
+            get { return this.Parts[28]; }
+            set { this.Parts[28] = value; }
         }
         #endregion
 
