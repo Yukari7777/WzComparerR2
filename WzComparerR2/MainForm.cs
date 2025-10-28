@@ -80,11 +80,16 @@ namespace WzComparerR2
         //compare
         Thread compareThread;
 
+        private WzDumpOptions xmlDumpOptions;
+        private WzDumpOptions jsonDumpOptions;
+
         private void initFields()
         {
             openedWz = new List<Wz_Structure>();
             stringLinker = new StringLinker();
             historyNodeList = new HistoryList<Node>();
+            xmlDumpOptions = WzDumpOptions.CreateDefaults(true);
+            jsonDumpOptions = WzDumpOptions.CreateDefaults(false);
 
             /*
             tooltipQuickView = new AfrmTooltip();
@@ -2306,32 +2311,20 @@ namespace WzComparerR2
             }
         }
 
-        private bool TryPromptDumpingOptions(bool isXmlExport, out DumpingOptions options)
+        private bool TryPromptDumpOptions(string title, ref WzDumpOptions cache, bool defaultExternal, out WzDumpOptions options)
         {
+            var defaults = cache?.Clone() ?? WzDumpOptions.CreateDefaults(defaultExternal);
+            using (var dialog = new FrmDumpOptions(title, defaults))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    options = dialog.SelectedOptions;
+                    cache = options.Clone();
+                    return true;
+                }
+            }
+
             options = null;
-            var defaults = (isXmlExport ? xmlDumpingOptions : jsonDumpingOptions).Clone();
-            using (var dlg = new FrmDumpingOptions(defaults))
-            {
-                dlg.Text = isXmlExport ? "XML 내보내기 옵션" : "JSON 내보내기 옵션";
-                if (dlg.ShowDialog(this) == DialogResult.OK)
-                {
-                    options = dlg.Options.Clone();
-                }
-            }
-
-            if (options != null)
-            {
-                if (isXmlExport)
-                {
-                    xmlDumpingOptions = options.Clone();
-                }
-                else
-                {
-                    jsonDumpingOptions = options.Clone();
-                }
-                return true;
-            }
-
             return false;
         }
 
@@ -2359,13 +2352,18 @@ namespace WzComparerR2
                 dlg.FileName = fname + ".xml";
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
+                    if (!TryPromptDumpOptions("XML 내보내기 옵션", ref xmlDumpOptions, defaultExternal: true, out var options))
+                    {
+                        return;
+                    }
+
                     string dir = Path.GetDirectoryName(dlg.FileName);
                     if (string.IsNullOrEmpty(dir))
                     {
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsXml(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (TryExportImageAsXml(img, dlg.FileName, dir, options, out Exception error))
                     {
                         labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
                     }
@@ -2392,6 +2390,11 @@ namespace WzComparerR2
                     return;
                 }
 
+                if (!TryPromptDumpOptions("XML 내보내기 옵션", ref xmlDumpOptions, defaultExternal: true, out var options))
+                {
+                    return;
+                }
+
                 string exportRoot = dlg.SelectedPath;
                 int successCount = 0;
                 List<string> failed = new List<string>();
@@ -2400,7 +2403,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".xml";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsXml(image, targetPath, exportRoot, dumpOptions, out Exception error))
+                    if (TryExportImageAsXml(image, targetPath, exportRoot, options, out Exception error))
                     {
                         successCount++;
                     }
@@ -2474,13 +2477,18 @@ namespace WzComparerR2
                 dlg.FileName = fname + ".json";
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
+                    if (!TryPromptDumpOptions("JSON 내보내기 옵션", ref jsonDumpOptions, defaultExternal: false, out var options))
+                    {
+                        return;
+                    }
+
                     string dir = Path.GetDirectoryName(dlg.FileName);
                     if (string.IsNullOrEmpty(dir))
                     {
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsJson(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (TryExportImageAsJson(img, dlg.FileName, dir, options, out Exception error))
                     {
                         labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
                     }
@@ -2507,6 +2515,11 @@ namespace WzComparerR2
                     return;
                 }
 
+                if (!TryPromptDumpOptions("JSON 내보내기 옵션", ref jsonDumpOptions, defaultExternal: false, out var options))
+                {
+                    return;
+                }
+
                 string exportRoot = dlg.SelectedPath;
                 int successCount = 0;
                 List<string> failed = new List<string>();
@@ -2515,7 +2528,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsJson(image, targetPath, exportRoot, dumpOptions, out Exception error))
+                    if (TryExportImageAsJson(image, targetPath, exportRoot, options, out Exception error))
                     {
                         successCount++;
                     }
@@ -2545,7 +2558,7 @@ namespace WzComparerR2
             }
         }
 
-        private static bool TryExportImageAsXml(Wz_Image image, string xmlPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
+        private static bool TryExportImageAsXml(Wz_Image image, string xmlPath, string exportRoot, WzDumpOptions dumpOptions, out Exception error)
         {
             error = null;
             try
@@ -2578,7 +2591,7 @@ namespace WzComparerR2
                 using (var writer = XmlWriter.Create(fs, settings))
                 {
                     writer.WriteStartDocument(true);
-                    image.Node.DumpAsXml(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
+                    image.Node.DumpAsXml(writer, exportRoot, dumpOptions);
                     writer.WriteEndDocument();
                 }
 
@@ -2591,7 +2604,7 @@ namespace WzComparerR2
             }
         }
 
-        private static bool TryExportImageAsJson(Wz_Image image, string jsonPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
+        private static bool TryExportImageAsJson(Wz_Image image, string jsonPath, string exportRoot, WzDumpOptions dumpOptions, out Exception error)
         {
             error = null;
             try
@@ -2620,7 +2633,7 @@ namespace WzComparerR2
                 using (var fs = new FileStream(jsonPath, FileMode.Create, FileAccess.Write))
                 using (var writer = new Utf8JsonWriter(fs, jsonWriterOptions))
                 {
-                    image.Node.DumpAsJson(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
+                    image.Node.DumpAsJson(writer, exportRoot, dumpOptions);
                 }
 
                 return true;
