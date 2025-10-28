@@ -74,6 +74,9 @@ namespace WzComparerR2
         DefaultLevel skillDefaultLevel = DefaultLevel.Level0;
         int skillInterval = 32;
 
+        DumpingOptions xmlDumpingOptions = DumpingOptions.CreateXmlDefaults();
+        DumpingOptions jsonDumpingOptions = DumpingOptions.CreateJsonDefaults();
+
         //compare
         Thread compareThread;
 
@@ -2303,8 +2306,42 @@ namespace WzComparerR2
             }
         }
 
+        private bool TryPromptDumpingOptions(bool isXmlExport, out DumpingOptions options)
+        {
+            options = null;
+            var defaults = (isXmlExport ? xmlDumpingOptions : jsonDumpingOptions).Clone();
+            using (var dlg = new FrmDumpingOptions(defaults))
+            {
+                dlg.Text = isXmlExport ? "XML 내보내기 옵션" : "JSON 내보내기 옵션";
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    options = dlg.Options.Clone();
+                }
+            }
+
+            if (options != null)
+            {
+                if (isXmlExport)
+                {
+                    xmlDumpingOptions = options.Clone();
+                }
+                else
+                {
+                    jsonDumpingOptions = options.Clone();
+                }
+                return true;
+            }
+
+            return false;
+        }
+
         private void tsmi1DumpAsXml_Click(object sender, EventArgs e)
         {
+            if (!TryPromptDumpingOptions(true, out var dumpOptions))
+            {
+                return;
+            }
+
             Wz_Node selectedNode = advTree1.SelectedNode?.AsWzNode();
             if (selectedNode == null)
             {
@@ -2328,7 +2365,7 @@ namespace WzComparerR2
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsXml(img, dlg.FileName, dir, out Exception error))
+                    if (TryExportImageAsXml(img, dlg.FileName, dir, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
                     }
@@ -2363,7 +2400,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".xml";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsXml(image, targetPath, exportRoot, out Exception error))
+                    if (TryExportImageAsXml(image, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         successCount++;
                     }
@@ -2415,6 +2452,11 @@ namespace WzComparerR2
         }
         private void tsmi1DumpAsJson_Click(object sender, EventArgs e)
         {
+            if (!TryPromptDumpingOptions(false, out var dumpOptions))
+            {
+                return;
+            }
+
             Wz_Node selectedNode = advTree1.SelectedNode?.AsWzNode();
             if (selectedNode == null)
             {
@@ -2438,7 +2480,7 @@ namespace WzComparerR2
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsJson(img, dlg.FileName, dir, out Exception error))
+                    if (TryExportImageAsJson(img, dlg.FileName, dir, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
                     }
@@ -2473,7 +2515,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsJson(image, targetPath, exportRoot, out Exception error))
+                    if (TryExportImageAsJson(image, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         successCount++;
                     }
@@ -2503,7 +2545,7 @@ namespace WzComparerR2
             }
         }
 
-        private static bool TryExportImageAsXml(Wz_Image image, string xmlPath, string exportRoot, out Exception error)
+        private static bool TryExportImageAsXml(Wz_Image image, string xmlPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
         {
             error = null;
             try
@@ -2513,6 +2555,8 @@ namespace WzComparerR2
                     error = extractError;
                     return false;
                 }
+
+                dumpOptions ??= DumpingOptions.CreateXmlDefaults();
 
                 string directory = Path.GetDirectoryName(xmlPath);
                 if (!string.IsNullOrEmpty(directory))
@@ -2534,7 +2578,7 @@ namespace WzComparerR2
                 using (var writer = XmlWriter.Create(fs, settings))
                 {
                     writer.WriteStartDocument(true);
-                    image.Node.DumpAsXml(writer, exportRoot);
+                    image.Node.DumpAsXml(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
                     writer.WriteEndDocument();
                 }
 
@@ -2547,7 +2591,7 @@ namespace WzComparerR2
             }
         }
 
-        private static bool TryExportImageAsJson(Wz_Image image, string jsonPath, string exportRoot, out Exception error)
+        private static bool TryExportImageAsJson(Wz_Image image, string jsonPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
         {
             error = null;
             try
@@ -2558,13 +2602,15 @@ namespace WzComparerR2
                     return false;
                 }
 
+                dumpOptions ??= DumpingOptions.CreateJsonDefaults();
+
                 string directory = Path.GetDirectoryName(jsonPath);
                 if (!string.IsNullOrEmpty(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
 
-                var options = new JsonWriterOptions()
+                var jsonWriterOptions = new JsonWriterOptions()
                 {
                     Indented = true,
                     Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -2572,9 +2618,9 @@ namespace WzComparerR2
                 };
 
                 using (var fs = new FileStream(jsonPath, FileMode.Create, FileAccess.Write))
-                using (var writer = new Utf8JsonWriter(fs, options))
+                using (var writer = new Utf8JsonWriter(fs, jsonWriterOptions))
                 {
-                    image.Node.DumpAsJson(writer, exportRoot);
+                    image.Node.DumpAsJson(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
                 }
 
                 return true;

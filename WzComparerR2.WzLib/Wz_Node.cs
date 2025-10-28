@@ -571,10 +571,12 @@ namespace WzComparerR2.WzLib
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
         {
+            DumpAsXml(node, writer, dir, false, true, false);
+        }
+
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
+        {
             object value = node.Value;
-            bool dumpRaw = false;
-            bool dumpExt = true;//save raw files as external files
-            bool leaveRef = false;
 
             if (value == null || value is Wz_Image)
             {
@@ -699,7 +701,7 @@ namespace WzComparerR2.WzLib
             //输出子节点
             foreach (var child in node.Nodes)
             {
-                DumpAsXml(child, writer, dir);
+                DumpAsXml(child, writer, dir, dumpRaw, dumpExt, leaveRef);
             }
 
             //结束标识
@@ -707,36 +709,37 @@ namespace WzComparerR2.WzLib
         }
         public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir)
         {
+            DumpAsJson(node, writer, dir, false, false, false);
+        }
+
+        public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
+        {
             writer.WriteStartObject();
-            WriteNodeProperty(node, writer, dir);
+            WriteNodeProperty(node, writer, dir, dumpRaw, dumpExt, leaveRef);
             writer.WriteEndObject();
         }
 
-        private static void WriteNodeProperty(Wz_Node node, Utf8JsonWriter writer, string dir)
+        private static void WriteNodeProperty(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
         {
             writer.WritePropertyName(node.Text);
-            WriteNodeValue(node, writer, dir);
+            WriteNodeValue(node, writer, dir, dumpRaw, dumpExt, leaveRef);
         }
 
-        private static void WriteNodeValue(Wz_Node node, Utf8JsonWriter writer, string dir)
+        private static void WriteNodeValue(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
         {
-            const bool dumpRaw = false;
-            const bool dumpExt = false;
-            const bool leaveRef = false;
-
             object value = node.Value;
             bool hasChildren = node.Nodes.Count > 0;
 
             if (value == null || value is Wz_Image)
             {
-                WriteNodeAsObject(node, writer, dir, null);
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, null);
                 return;
             }
 
             if (value is Wz_Png png)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "png");
                     if (!(png.Width == 1 && png.Height == 1))
@@ -771,7 +774,7 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Uol uol)
             {
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "uol");
                     writer.WriteString("value", uol.Uol);
@@ -781,10 +784,10 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Vector vector)
             {
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "vector");
-                    writer.WriteString("value", $"{vector.X}, {vector.Y}");  
+                    writer.WriteString("value", $"{vector.X}, {vector.Y}");
                 });
                 return;
             }
@@ -792,7 +795,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_Sound sound)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "sound");
                     if (sound.DataLength > 0)
@@ -831,7 +834,7 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Convex convex)
             {
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "convex");
                     writer.WritePropertyName("points");
@@ -850,7 +853,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_RawData rawData)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "rawdata");
                     writer.WriteNumber("length", rawData.Length);
@@ -875,7 +878,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_Video video)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
                 {
                     writer.WriteString("type", "video");
                     writer.WriteNumber("length", video.Length);
@@ -899,90 +902,90 @@ namespace WzComparerR2.WzLib
 
             if (value is string str)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteStringValue(str), () => writer.WriteString("value", str));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteStringValue(str), () => writer.WriteString("value", str));
                 return;
             }
 
             if (value is bool boolean)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteBooleanValue(boolean), () => writer.WriteBoolean("value", boolean));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteBooleanValue(boolean), () => writer.WriteBoolean("value", boolean));
                 return;
             }
 
             if (value is sbyte sb)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(sb), () => writer.WriteNumber("value", sb));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(sb), () => writer.WriteNumber("value", sb));
                 return;
             }
 
             if (value is byte b)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(b), () => writer.WriteNumber("value", b));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(b), () => writer.WriteNumber("value", b));
                 return;
             }
 
             if (value is short s)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(s), () => writer.WriteNumber("value", s));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(s), () => writer.WriteNumber("value", s));
                 return;
             }
 
             if (value is ushort us)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(us), () => writer.WriteNumber("value", us));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(us), () => writer.WriteNumber("value", us));
                 return;
             }
 
             if (value is int i)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(i), () => writer.WriteNumber("value", i));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(i), () => writer.WriteNumber("value", i));
                 return;
             }
 
             if (value is uint ui)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(ui), () => writer.WriteNumber("value", ui));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(ui), () => writer.WriteNumber("value", ui));
                 return;
             }
 
             if (value is long l)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(l), () => writer.WriteNumber("value", l));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(l), () => writer.WriteNumber("value", l));
                 return;
             }
 
             if (value is ulong ul)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(ul), () => writer.WriteNumber("value", ul));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(ul), () => writer.WriteNumber("value", ul));
                 return;
             }
 
             if (value is float f)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(f), () => writer.WriteNumber("value", f));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(f), () => writer.WriteNumber("value", f));
                 return;
             }
 
             if (value is double d)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(d), () => writer.WriteNumber("value", d));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(d), () => writer.WriteNumber("value", d));
                 return;
             }
 
             if (value is decimal dec)
             {
-                WritePrimitive(node, writer, dir, hasChildren, () => writer.WriteNumberValue(dec), () => writer.WriteNumber("value", dec));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(dec), () => writer.WriteNumber("value", dec));
                 return;
             }
 
-            WriteNodeAsObject(node, writer, dir, () =>
+            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
             {
                 writer.WriteString("type", value.GetType().Name.ToLowerInvariant());
                 writer.WriteString("value", value.ToString());
             });
         }
 
-        private static void WritePrimitive(Wz_Node node, Utf8JsonWriter writer, string dir, bool hasChildren, Action writeValue, Action writeProperty)
+        private static void WritePrimitive(Wz_Node node, Utf8JsonWriter writer, string dir, bool hasChildren, bool dumpRaw, bool dumpExt, bool leaveRef, Action writeValue, Action writeProperty)
         {
             if (!hasChildren)
             {
@@ -990,10 +993,10 @@ namespace WzComparerR2.WzLib
                 return;
             }
 
-            WriteNodeAsObject(node, writer, dir, () => writeProperty());
+            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () => writeProperty());
         }
 
-        private static void WriteNodeAsObject(Wz_Node node, Utf8JsonWriter writer, string dir, Action metadataWriter)
+        private static void WriteNodeAsObject(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, Action metadataWriter)
         {
             writer.WriteStartObject();
             metadataWriter?.Invoke();
@@ -1001,7 +1004,7 @@ namespace WzComparerR2.WzLib
             {
                 foreach (var child in node.Nodes)
                 {
-                    WriteNodeProperty(child, writer, dir);
+                    WriteNodeProperty(child, writer, dir, dumpRaw, dumpExt, leaveRef);
                 }
             }
             writer.WriteEndObject();
