@@ -759,7 +759,8 @@ namespace WzComparerR2.WzLib
                     {
                         WritePngRawData(writer, png);
                     }
-                    else if (dumpExt || leaveRef)
+                    
+                    if (dumpExt)
                     {
                         exportedFiles = ExportPng(node, png, dir);
                     }
@@ -819,7 +820,8 @@ namespace WzComparerR2.WzLib
                     {
                         writer.WriteBase64String("wzdata", GetSoundBytes(sound));
                     }
-                    else if (dumpExt || leaveRef)
+                    
+                    if (dumpExt)
                     {
                         exportedFiles = ExportSound(node, sound, dir);
                     }
