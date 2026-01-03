@@ -11,6 +11,7 @@ namespace WzComparerR2.Common
         public StringLinker()
         {
             stringEqp = new Dictionary<int, StringResult>();
+            stringFamiliarSkill = new Dictionary<int, StringResult>();
             stringItem = new Dictionary<int, StringResult>();
             stringMap = new Dictionary<int, StringResult>();
             stringMob = new Dictionary<int, StringResult>();
@@ -24,8 +25,8 @@ namespace WzComparerR2.Common
 
         public bool Update(Wz_Node stringNode, Wz_Node itemNode, Wz_Node etcNode, Wz_Node questNode)
         {
-            if (stringNode == null || itemNode == null || etcNode == null)
-                return false;
+            //if (stringNode == null || itemNode == null || etcNode == null)
+                //return false;
 
             return Load(stringNode, itemNode, etcNode, questNode, update: true);
         }
@@ -37,19 +38,19 @@ namespace WzComparerR2.Common
 
         public bool Load(Wz_File stringWz, Wz_File itemWz, Wz_File etcWz, Wz_File questWz)
         {
-            if (stringWz == null || stringWz.Node == null ||
-                itemWz == null || itemWz.Node == null ||
-                etcWz == null || etcWz.Node == null)
-                return false;
+            //if (stringWz == null || stringWz.Node == null ||
+                //itemWz == null || itemWz.Node == null ||
+                //etcWz == null || etcWz.Node == null)
+                //return false;
             this.Clear();
 
-            return Load(stringWz.Node, itemWz.Node, etcWz.Node, questWz.Node);
+            return Load(stringWz?.Node, itemWz?.Node, etcWz?.Node, questWz?.Node);
         }
 
         public bool Load(Wz_Node stringNode, Wz_Node itemNode, Wz_Node etcNode, Wz_Node questNode, bool update = false)
         {
             int id;
-            foreach (Wz_Node node in stringNode.Nodes ?? new Wz_Node.WzNodeCollection(null))
+            foreach (Wz_Node node in stringNode?.Nodes ?? new Wz_Node.WzNodeCollection(null))
             {
                 Wz_Image image = node.Value as Wz_Image;
                 if (image == null)
@@ -105,6 +106,31 @@ namespace WzComparerR2.Common
 
                                     AddAllValue(strResult, linkNode);
                                     stringItem[id] = strResult;
+                                }
+                            }
+                        }
+                        break;
+                    case "Familiar.img":
+                    case "FamiliarSkill.img":
+                        if (!image.TryExtract()) break;
+                        foreach (Wz_Node tree0 in image.Node.Nodes)
+                        {
+                            if (tree0.Text == "skill")
+                            {
+                                foreach (Wz_Node tree1 in tree0.Nodes)
+                                {
+                                    if (Int32.TryParse(tree1.Text, out id) && tree1.ResolveUol() is Wz_Node linkNode)
+                                    {
+                                        StringResult strResult = null;
+                                        if (strResult == null) strResult = new StringResult();
+
+                                        strResult.Name = GetDefaultString(linkNode, "name") ?? strResult.Name ?? string.Empty;
+                                        strResult.Desc = GetDefaultString(linkNode, "desc") ?? strResult.Desc;
+                                        strResult.FullPath = tree1.FullPath;
+
+                                        AddAllValue(strResult, linkNode);
+                                        stringFamiliarSkill[id] = strResult;
+                                    }
                                 }
                             }
                         }
@@ -298,7 +324,7 @@ namespace WzComparerR2.Common
                 }
             }
 
-            foreach (Wz_Node node in itemNode.FindNodeByPath("Special")?.Nodes ?? new Wz_Node.WzNodeCollection(null))
+            foreach (Wz_Node node in itemNode?.FindNodeByPath("Special")?.Nodes ?? new Wz_Node.WzNodeCollection(null))
             {
                 Wz_Image image = node.Value as Wz_Image;
                 if (image == null)
@@ -331,7 +357,7 @@ namespace WzComparerR2.Common
                 }
             }
 
-            foreach (Wz_Node node in etcNode.Nodes ?? new Wz_Node.WzNodeCollection(null))
+            foreach (Wz_Node node in etcNode?.Nodes ?? new Wz_Node.WzNodeCollection(null))
             {
                 Wz_Image image = node.Value as Wz_Image;
                 if (image == null)
@@ -363,7 +389,7 @@ namespace WzComparerR2.Common
                 }
             }
 
-            var achievementNode = etcNode.FindNodeByPath("Achievement\\AchievementData");
+            var achievementNode = etcNode?.FindNodeByPath("Achievement\\AchievementData");
             foreach (Wz_Node node in achievementNode?.Nodes ?? new Wz_Node.WzNodeCollection(null))
             {
                 Wz_Image image = node.Value as Wz_Image;
@@ -443,6 +469,7 @@ namespace WzComparerR2.Common
         public void Clear()
         {
             stringEqp.Clear();
+            stringFamiliarSkill.Clear();
             stringItem.Clear();
             stringMob.Clear();
             stringMap.Clear();
@@ -464,6 +491,7 @@ namespace WzComparerR2.Common
         }
 
         private Dictionary<int, StringResult> stringEqp;
+        private Dictionary<int, StringResult> stringFamiliarSkill;
         private Dictionary<int, StringResult> stringItem;
         private Dictionary<int, StringResult> stringMap;
         private Dictionary<int, StringResult> stringMob;
@@ -494,6 +522,11 @@ namespace WzComparerR2.Common
         public Dictionary<int, StringResult> StringEqp
         {
             get { return stringEqp; }
+        }
+
+        public Dictionary<int, StringResult> StringFamiliarSkill
+        {
+            get { return stringFamiliarSkill; }
         }
 
         public Dictionary<int, StringResult> StringItem

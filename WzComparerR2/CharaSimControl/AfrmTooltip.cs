@@ -2,11 +2,15 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Drawing;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using WzComparerR2.Common;
 using WzComparerR2.CharaSim;
 using WzComparerR2.Controls;
+using WzComparerR2.PluginBase;
 using System.Linq;
+using WzComparerR2.WzLib;
 
 namespace WzComparerR2.CharaSimControl
 {
@@ -21,6 +25,7 @@ namespace WzComparerR2.CharaSimControl
 
             this.Size = new Size(1, 1);
             this.HideOnHover = true;
+            this.FamiliarRender = new FamiliarTooltipRender();
             this.GearRender = new GearTooltipRender2();
             this.GearRender22 = new GearTooltipRender22();
             this.ItemRender = new ItemTooltipRender2();
@@ -56,6 +61,8 @@ namespace WzComparerR2.CharaSimControl
         public StringLinker StringLinker { get; set; }
         public Character Character { get; set; }
 
+        
+        public FamiliarTooltipRender FamiliarRender { get; private set; }
         public GearTooltipRender2 GearRender { get; private set; }
         public GearTooltipRender22 GearRender22 { get; private set; }
         public ItemTooltipRender2 ItemRender { get; private set; }
@@ -72,6 +79,17 @@ namespace WzComparerR2.CharaSimControl
         public AchievementTooltipRenderer AchievementRender { get; private set; }
 
         public string ImageFileName { get; set; }
+        public string NodeName { get; set; }
+        public string Desc { get; set; }
+        public string Pdesc { get; set; }
+        public string AutoDesc { get; set; }
+        public string Hdesc { get; set; }
+        public string DescLeftAlign { get; set; }
+        public string QuestAvailable { get; set; }
+        public string QuestProgress { get; set; }
+        public string QuestComplete { get; set; }
+        public int NodeID { get; set; }
+        public int PreferredStringCopyMethod { get; set; }
 
         private ToolStripMenuItem SaveSample {  get; set; }
 
@@ -84,6 +102,7 @@ namespace WzComparerR2.CharaSimControl
             set
             {
                 this.showID = value;
+                this.FamiliarRender.ShowObjectID = value;
                 this.GearRender.ShowObjectID = value;
                 this.GearRender22.ShowObjectID = value;
                 this.ItemRender.ShowObjectID = value;
@@ -175,12 +194,16 @@ namespace WzComparerR2.CharaSimControl
             this.menu.Items.Clear();
             this.menu.Items.Add(new ToolStripMenuItem("복사(&C)", null, tsmiCopy_Click));
             this.menu.Items.Add(new ToolStripMenuItem("저장(&S)", null, tsmiSave_Click));
+            this.menu.Items.Add(new ToolStripMenuItem("텍스트 복사(&T)", null, tsmiCopyText_Click));
         }
 
         public void PreRender()
         {
             if (this.item == null)
                 return;
+
+            if (Bitmap != null)
+                Bitmap.Dispose();
 
             TooltipRender renderer;
             if (item is Item)
@@ -195,6 +218,12 @@ namespace WzComparerR2.CharaSimControl
                     renderer = ItemRender;
                     ItemRender.Item = this.item as Item;
                 }
+            }
+            else if (item is Familiar)
+            {
+                renderer = FamiliarRender;
+                FamiliarRender.Familiar = this.item as Familiar;
+                // FamiliarRender.UseAssembleUI = EnableAssembleTooltip;
             }
             else if (item is Gear)
             {
@@ -391,6 +420,47 @@ namespace WzComparerR2.CharaSimControl
             }
         }
 
+        void tsmiCopyText_Click(object sender, EventArgs e)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (String.IsNullOrEmpty(this.Desc)) this.Desc = "";
+            if (String.IsNullOrEmpty(this.Pdesc)) this.Pdesc = "";
+            if (String.IsNullOrEmpty(this.AutoDesc)) this.AutoDesc = "";
+            if (String.IsNullOrEmpty(this.Hdesc)) this.Hdesc = "";
+            if (String.IsNullOrEmpty(this.DescLeftAlign)) this.DescLeftAlign = "";
+
+            if (this.PreferredStringCopyMethod == 2) sb.AppendLine(this.NodeID.ToString());
+            if (!String.IsNullOrEmpty(this.NodeName)) sb.AppendLine(this.NodeName);
+            switch (this.PreferredStringCopyMethod)
+            {
+                // raw text
+                default:
+                case 0:
+                    foreach (string i in (new[] { this.Desc, this.Pdesc, this.AutoDesc, this.Hdesc, this.DescLeftAlign }).Where(t => !string.IsNullOrEmpty(t)))
+                    {
+                        sb.AppendLine(i);
+                    }
+                    break;
+
+                // plain text
+                case 1:
+                    var hdesc = this.Hdesc;
+                    if (this.item is Skill) hdesc = this.SkillRender.ParsedHdesc;
+                    foreach (string i in new[] { this.Desc, this.Pdesc, this.AutoDesc, hdesc, this.DescLeftAlign }.Where(t => !string.IsNullOrEmpty(t)))
+                    {
+                        var text = i;
+                        if (this.item is Quest) text = this.QuestRender.ReplaceQuestString(i, true);
+                        foreach (var j in text.Split(new[] { "\\n" }, StringSplitOptions.None))
+                        {
+                            sb.AppendLine(j.Replace("\\r", "").Replace("#c", "").Replace("#", ""));
+                        }
+                    }
+                    break;
+            }
+            Clipboard.SetText(sb.ToString());
+            sb.Clear();
+        }
+
         private Byte[] ConvertToDib(Image image) // https://stackoverflow.com/a/46424800
         {
             Byte[] bm32bData;
@@ -493,7 +563,14 @@ namespace WzComparerR2.CharaSimControl
                         break;
 
                     case "item":
-                        bitmap = (tag["renderer"] as ItemTooltipRender2).GetSampleBitmap();
+                        if (this.Enable22AniStyle)
+                        {
+                            bitmap = (tag["renderer"] as ItemTooltipRender22).GetSampleBitmap();
+                        }
+                        else
+                        {
+                            bitmap = (tag["renderer"] as ItemTooltipRender2).GetSampleBitmap();
+                        }
                         break;
 
                     default:

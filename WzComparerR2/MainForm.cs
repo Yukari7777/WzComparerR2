@@ -248,6 +248,7 @@ namespace WzComparerR2
         {
             var Setting = CharaSimConfig.Default;
             this.buttonItemAutoQuickView.Checked = Setting.AutoQuickView;
+            tooltipQuickView.PreferredStringCopyMethod = Setting.Misc.PreferredStringCopyMethod;
             tooltipQuickView.SkillRender.ShowProperties = Setting.Skill.ShowProperties;
             tooltipQuickView.SkillRender.ShowObjectID = Setting.Skill.ShowID;
             tooltipQuickView.SkillRender.ShowDelay = Setting.Skill.ShowDelay;
@@ -259,7 +260,7 @@ namespace WzComparerR2
 
             this.skillDefaultLevel = Setting.Skill.DefaultLevel;
             this.skillInterval = Setting.Skill.IntervalLevel;
-
+            tooltipQuickView.FamiliarRender.ShowObjectID = Setting.Gear.ShowID;
             tooltipQuickView.GearRender.ShowObjectID = Setting.Gear.ShowID;
             tooltipQuickView.GearRender.ShowSpeed = Setting.Gear.ShowWeaponSpeed;
             tooltipQuickView.GearRender.ShowLevelOrSealed = Setting.Gear.ShowLevelOrSealed;
@@ -277,18 +278,30 @@ namespace WzComparerR2
             tooltipQuickView.ItemRender.ShowLevelOrSealed = Setting.Gear.ShowLevelOrSealed;
             tooltipQuickView.ItemRender.CosmeticHairColor = Setting.Item.CosmeticHairColor;
             tooltipQuickView.ItemRender.CosmeticFaceColor = Setting.Item.CosmeticFaceColor;
+            tooltipQuickView.ItemRender.ShowDamageSkin = Setting.DamageSkin.ShowDamageSkin;
+            tooltipQuickView.ItemRender.ShowDamageSkinID = Setting.DamageSkin.ShowDamageSkinID;
+            tooltipQuickView.ItemRender.UseMiniSizeDamageSkin = Setting.DamageSkin.UseMiniSize;
+            tooltipQuickView.ItemRender.AlwaysUseMseaFormatDamageSkin = Setting.DamageSkin.AlwaysUseMseaFormat;
+            tooltipQuickView.ItemRender.DisplayUnitOnSingleLine = Setting.DamageSkin.DisplayUnitOnSingleLine;
+            tooltipQuickView.ItemRender.DamageSkinNumber = Setting.DamageSkin.DamageSkinNumber;
             tooltipQuickView.ItemRender22.ShowObjectID = Setting.Item.ShowID;
             tooltipQuickView.ItemRender22.LinkRecipeInfo = Setting.Item.LinkRecipeInfo;
             tooltipQuickView.ItemRender22.LinkRecipeItem = Setting.Item.LinkRecipeItem;
             tooltipQuickView.ItemRender22.ShowLevelOrSealed = Setting.Gear.ShowLevelOrSealed;
             tooltipQuickView.ItemRender22.CosmeticHairColor = Setting.Item.CosmeticHairColor;
             tooltipQuickView.ItemRender22.CosmeticFaceColor = Setting.Item.CosmeticFaceColor;
+            tooltipQuickView.ItemRender22.ShowDamageSkin = Setting.DamageSkin.ShowDamageSkin;
+            tooltipQuickView.ItemRender22.ShowDamageSkinID = Setting.DamageSkin.ShowDamageSkinID;
+            tooltipQuickView.ItemRender22.UseMiniSizeDamageSkin = Setting.DamageSkin.UseMiniSize;
+            tooltipQuickView.ItemRender22.AlwaysUseMseaFormatDamageSkin = Setting.DamageSkin.AlwaysUseMseaFormat;
+            tooltipQuickView.ItemRender22.DisplayUnitOnSingleLine = Setting.DamageSkin.DisplayUnitOnSingleLine;
+            tooltipQuickView.ItemRender22.DamageSkinNumber = Setting.DamageSkin.DamageSkinNumber;
 
             tooltipQuickView.MapRender.ShowMiniMap = Setting.Map.ShowMiniMap;
             tooltipQuickView.MapRender.ShowMiniMapMob = Setting.Map.ShowMiniMapMob;
             tooltipQuickView.MapRender.ShowMiniMapNpc = Setting.Map.ShowMiniMapNpc;
             tooltipQuickView.MapRender.ShowMiniMapPortal = Setting.Map.ShowMiniMapPortal;
-
+            tooltipQuickView.NpcRender.ShowAllIllustAtOnce = Setting.Npc.ShowAllIllustAtOnce;
             tooltipQuickView.QuestRender.ShowObjectID = Setting.Quest.ShowID;
             tooltipQuickView.QuestRender.DefaultState = Setting.Quest.DefaultState;
             tooltipQuickView.QuestRender.ShowAllStates = Setting.Quest.ShowAllStates;
@@ -1002,6 +1015,37 @@ namespace WzComparerR2
             }
         }
 
+        private void buttonCaptureAni_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0) return;
+
+            FrmCaptureAniOptions FrmAniCaptureOptions = new FrmCaptureAniOptions(this.pictureBoxEx1.MaxLength);
+            CaptureAniOptions options = new CaptureAniOptions();
+
+            if (FrmAniCaptureOptions.ShowDialog() == DialogResult.OK)
+            {
+                options = FrmAniCaptureOptions.GetValues();
+            }
+            else
+            {
+                return;
+            }
+
+            var clonedAniItem = this.pictureBoxEx1.Items.Select(aniItem => (AnimationItem)aniItem.Clone());
+            var aniItemTime = this.pictureBoxEx1.ItemTimes;
+            FrameAnimationData frameData = this.pictureBoxEx1.CaptureAnimation(clonedAniItem, aniItemTime, options.CaptureTime);
+
+            if (frameData != null && frameData.Frames.Count == 1)
+            {
+                this.OnSavePngFile(frameData.Frames[0], captureTime: options.CaptureTime.ToString());
+                this.pictureBoxEx1.DisposeAnimationItem(new FrameAnimator(frameData));
+            }
+            else
+            {
+                labelItemStatus.Text = "그림 저장 실패";
+            }
+        }
+
         private void OnSaveImage(bool options)
         {
             if (this.pictureBoxEx1.Items.Count <= 0)
@@ -1025,7 +1069,7 @@ namespace WzComparerR2
             }
         }
 
-        private void OnSavePngFile(Frame frame)
+        private void OnSavePngFile(Frame frame, string captureTime = "")
         {
             if (frame.Png != null)
             {
@@ -1057,10 +1101,10 @@ namespace WzComparerR2
                 }
                 labelItemStatus.Text = "그림 저장 완료: " + pngFileName;
             }
-            else if (pictureBoxEx1.ShowOverlayAni && frame.Texture != null) // 애니메이션 중첩
+            else if ((pictureBoxEx1.ShowOverlayAni || !string.IsNullOrEmpty(captureTime)) && frame.Texture != null) // 애니메이션 중첩
             {
                 var config = ImageHandlerConfig.Default;
-                string pngFileName = pictureBoxEx1.PictureName + ".png";
+                string pngFileName = string.IsNullOrEmpty(captureTime) ? pictureBoxEx1.PictureName + ".png" : $"{pictureBoxEx1.PictureName}_{captureTime}.png";
 
                 if (config.AutoSaveEnabled)
                 {
@@ -3713,7 +3757,6 @@ namespace WzComparerR2
             }
 
             object obj = null;
-            string fileName = null;
             switch (wzf.Type)
             {
                 case Wz_Type.Character:
@@ -3722,13 +3765,17 @@ namespace WzComparerR2
                     CharaSimLoader.LoadSetItemsIfEmpty();
                     CharaSimLoader.LoadExclusiveEquipsIfEmpty();
                     CharaSimLoader.LoadCommoditiesIfEmpty();
-                    var gear = Gear.CreateFromNode(image.Node, PluginManager.FindWz);
-                    obj = gear;
-                    if (gear != null)
+                    if (selectedNode.FullPathToFile.Contains("Familiar"))
                     {
-                        fileName = gear.ItemID + ".png";
+                        var familiar = Familiar.CreateFromNode(image.Node, PluginManager.FindWz);
+                        obj = familiar;
                     }
-                    break;
+                    else
+                    {
+                        var gear = Gear.CreateFromNode(image.Node, PluginManager.FindWz);
+                        obj = gear;
+                    }
+                        break;
                 case Wz_Type.Item:
                     CharaSimLoader.LoadCommoditiesIfEmpty();
                     Wz_Node itemNode = selectedNode;
@@ -3736,10 +3783,6 @@ namespace WzComparerR2
                     {
                         var item = Item.CreateFromNode(itemNode, PluginManager.FindWz);
                         obj = item;
-                        if (item != null)
-                        {
-                            fileName = item.ItemID + ".png";
-                        }
                     }
                     else if (Regex.IsMatch(itemNode.FullPathToFile, @"^Item\\Pet\\\d{7}.img"))
                     {
@@ -3751,10 +3794,6 @@ namespace WzComparerR2
                             return;
                         var item = Item.CreateFromNode(image.Node, PluginManager.FindWz);
                         obj = item;
-                        if (item != null)
-                        {
-                            fileName = item.ItemID + ".png";
-                        }
                     }
 
                     break;
@@ -3765,26 +3804,11 @@ namespace WzComparerR2
                     {
                         Recipe recipe = Recipe.CreateFromNode(skillNode);
                         obj = recipe;
-                        if (recipe != null)
-                        {
-                            fileName = "recipe_" + recipe.RecipeID + ".png";
-                        }
                     }
                     else if (Regex.IsMatch(skillNode.FullPathToFile, @"^Skill\d*\\\d+.img\\skill\\\d+$"))
                     {
                         Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz, PluginManager.FindWz);
-                        if (skill != null)
-                        {
-                            switch (this.skillDefaultLevel)
-                            {
-                                case DefaultLevel.Level0: skill.Level = 0; break;
-                                case DefaultLevel.Level1: skill.Level = 1; break;
-                                case DefaultLevel.LevelMax: skill.Level = skill.MaxLevel; break;
-                                case DefaultLevel.LevelMaxWithCO: skill.Level = skill.MaxLevel + 2; break;
-                            }
-                            obj = skill;
-                            fileName = "skill_" + skill.SkillID + ".png";
-                        }
+                        obj = skill;
                     }
                     break;
 
@@ -3793,10 +3817,6 @@ namespace WzComparerR2
                         return;
                     var map = Map.CreateFromNode(image.Node, PluginManager.FindWz);
                     obj = map;
-                    if (map != null)
-                    {
-                        fileName = map.MapID + ".png";
-                    }
                     break;
 
                 case Wz_Type.Mob:
@@ -3804,21 +3824,13 @@ namespace WzComparerR2
                         return;
                     var mob = Mob.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
                     obj = mob;
-                    if (mob != null)
-                    {
-                        fileName = mob.ID + ".png";
-                    }
                     break;
 
                 case Wz_Type.Npc:
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
-                    var npc = Npc.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                    var npc = Npc.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz, getSpineDefaultFunc: this.pictureBoxEx1.GetSpineDefault);
                     obj = npc;
-                    if (npc != null)
-                    {
-                        fileName = npc.ID + ".png";
-                    }
                     break;
 
                 case Wz_Type.Quest:
@@ -3836,11 +3848,6 @@ namespace WzComparerR2
                         }
                     }
                     obj = quest;
-                    if (quest != null)
-                    {
-                        fileName = quest.ID + ".png";
-                        quest.State = tooltipQuickView.QuestRender.DefaultState;
-                    }
                     break;
 
                 case Wz_Type.Etc:
@@ -3852,27 +3859,27 @@ namespace WzComparerR2
                         if (!CharaSimLoader.LoadedSetItems.TryGetValue(Convert.ToInt32(selectedNode.Text), out setItem))
                             return;
                         obj = setItem;
-                        if (setItem != null)
-                        {
-                            fileName = setItem.SetItemID + ".png";
-                        }
                     }
                     else if (Regex.IsMatch(selectedNode.FullPathToFile, @"^Etc\\Achievement\\AchievementData\\(\d+).img$"))
                     {
                         if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                             return;
                         Achievement achievement = Achievement.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
-
                         obj = achievement;
-                        if (achievement != null)
-                        {
-                            fileName = achievement.ID + ".png";
-                        }
                     }
                     break;
             }
+
             if (obj != null)
             {
+                bool alreadySetTexts = false;
+                int node_id = -1;
+                string fileName = null;
+                string altAutoDesc = null;
+                StringResult sr = new StringResult();
+                Dictionary<int, StringResult> sr_dict = null;
+
+                // dispose bitmaps no longer in use
                 if (tooltipQuickView.TargetItem != null)
                 {
                     switch (tooltipQuickView.TargetItem)
@@ -3886,10 +3893,128 @@ namespace WzComparerR2
                         case Quest item:
                             item.Dispose();
                             break;
+                        case Familiar item:
+                            item.Dispose();
+                            break;
                     }
                 }
+                switch (obj)
+                {
+                    case Familiar familiar:
+                        sr_dict = stringLinker.StringMob;
+                        node_id = familiar.FamiliarID;
+                        fileName = "familiar_" + node_id + ".png";
+                        break;
+
+                    case Gear gear:
+                        sr_dict = stringLinker.StringEqp;
+                        node_id = gear.ItemID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Item item:
+                        sr_dict = stringLinker.StringItem;
+                        node_id = item.ItemID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Recipe recipe:
+                        sr_dict = stringLinker.StringSkill;
+                        node_id = recipe.RecipeID;
+                        fileName = "recipe_" + node_id + ".png";
+                        break;
+
+                    case Skill skill:
+                        switch (this.skillDefaultLevel)
+                        {
+                            case DefaultLevel.Level0: skill.Level = 0; break;
+                            case DefaultLevel.Level1: skill.Level = 1; break;
+                            case DefaultLevel.LevelMax: skill.Level = skill.MaxLevel; break;
+                            case DefaultLevel.LevelMaxWithCO: skill.Level = skill.MaxLevel + 2; break;
+                        }
+
+                        sr_dict = stringLinker.StringSkill;
+                        node_id = skill.SkillID;
+                        fileName = "skill_" + node_id + ".png";
+                        break;
+
+                    case Map map:
+                        sr_dict = stringLinker.StringMap;
+                        node_id = map.MapID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Mob mob:
+                        sr_dict = stringLinker.StringMob;
+                        node_id = mob.ID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Npc npc:
+                        sr_dict = stringLinker.StringNpc;
+                        node_id = npc.ID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Quest quest:
+                        quest.State = tooltipQuickView.QuestRender.DefaultState;
+
+                        tooltipQuickView.NodeName = quest.Name;
+                        tooltipQuickView.Desc = string.Join("\r\n", quest.Desc.Where(t => !string.IsNullOrEmpty(t)));
+                        if (quest.Desc.Count() == 3)
+                        {
+                            tooltipQuickView.QuestAvailable = quest.Desc[0];
+                            tooltipQuickView.QuestProgress = quest.Desc[1];
+                            tooltipQuickView.QuestComplete = quest.Desc[2];
+                        }
+                        else
+                        {
+                            tooltipQuickView.QuestAvailable = "";
+                            tooltipQuickView.QuestProgress = "";
+                            tooltipQuickView.QuestComplete = "";
+                        }
+                        tooltipQuickView.Pdesc = quest.DemandBase;
+                        tooltipQuickView.Hdesc = quest.DemandSummary;
+                        tooltipQuickView.AutoDesc = quest.PlaceSummary;
+                        tooltipQuickView.DescLeftAlign = quest.Summary;
+                        alreadySetTexts = true;
+
+                        node_id = quest.ID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case SetItem setItem:
+                        sr_dict = stringLinker.StringSetItem;
+                        node_id = setItem.SetItemID;
+                        fileName = node_id + ".png";
+                        break;
+
+                    case Achievement achievement:
+                        sr_dict = stringLinker.StringAchievement;
+                        node_id = achievement.ID;
+                        fileName = node_id + ".png";
+                        altAutoDesc = string.Join("\r\n", achievement.Missions);
+                        break;
+                }
+                if (stringLinker == null || !(sr_dict?.TryGetValue(node_id, out sr) ?? false))
+                {
+                    sr = new StringResult();
+                    sr.Name = "(null)";
+                }
+
                 tooltipQuickView.TargetItem = obj;
                 tooltipQuickView.ImageFileName = fileName;
+                tooltipQuickView.NodeID = node_id;
+                if (!alreadySetTexts)
+                {
+                    tooltipQuickView.NodeName = sr.Name;
+                    tooltipQuickView.Desc = sr.Desc;
+                    tooltipQuickView.Pdesc = sr.Pdesc;
+                    tooltipQuickView.AutoDesc = altAutoDesc ?? sr.AutoDesc;
+                    tooltipQuickView.Hdesc = sr["h"];
+                    tooltipQuickView.DescLeftAlign = sr["desc_leftalign"];
+                }
+
                 tooltipQuickView.Refresh();
                 tooltipQuickView.HideOnHover = false;
                 tooltipQuickView.Show();
@@ -4016,6 +4141,26 @@ namespace WzComparerR2
                     case Keys.OemMinus:
                     case Keys.Subtract:
                         quest.State -= 1;
+                        frm.Refresh();
+                        return;
+                }
+            }
+
+
+            Npc npc = frm.TargetItem as Npc;
+            if (npc != null)
+            {
+                switch (e.KeyCode)
+                {
+                    case Keys.Oemplus:
+                    case Keys.Add:
+                        npc.IllustIndex += 1;
+                        frm.Refresh();
+                        return;
+
+                    case Keys.OemMinus:
+                    case Keys.Subtract:
+                        npc.IllustIndex -= 1;
                         frm.Refresh();
                         return;
                 }
@@ -4428,6 +4573,184 @@ namespace WzComparerR2
             }
         }
 
+        private async void btnSkillTooltipExport_Click(object sender, EventArgs e)
+        {
+            if (PluginManager.FindWz(Wz_Type.Base) == null)
+            {
+                ToastNotification.Show(this, $"오류: Base.wz를 먼저 열어주세요.", null, 2000, eToastGlowColor.Red, eToastPosition.TopCenter);
+                return;
+            }
+            if (openedWz.Count > 1)
+            {
+                ToastNotification.Show(this, $"오류: Base.wz가 둘 이상 열려 있습니다.", null, 4000, eToastGlowColor.Red, eToastPosition.TopCenter);
+                return;
+            }
+            using (FrmSkillTooltipExport frm = new FrmSkillTooltipExport())
+            {
+                frm.skillNode = PluginManager.FindWz(Wz_Type.Skill);
+                if (frm.ShowDialog() == DialogResult.OK)
+                {
+                    var Setting = CharaSimConfig.Default;
+                    List<int> selectedJob = frm.SelectedJobCodes;
+                    string exportedFolder = frm.ExportFolderPath;
+                    labelX2.Text = "내보내는 중";
+                    System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    try
+                    {
+                        sw.Start();
+                        btnSkillTooltipExport.Enabled = false;
+                        await Task.Run(() =>
+                        {
+                            if (!this.stringLinker.HasValues)
+                                this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+
+                            // Initialize VCore Dictionary
+                            Dictionary<int, List<int>> FifthJobSkillToJobID = new Dictionary<int, List<int>>();
+                            Wz_Node vCoreData = PluginManager.FindWz("Etc\\VcoreNew.img\\vSkill\\CoreData", PluginManager.FindWz(Wz_Type.Base).GetNodeWzFile()) ?? PluginManager.FindWz("Etc\\VCore.img\\CoreData", PluginManager.FindWz(Wz_Type.Base).GetNodeWzFile());
+                            if (vCoreData != null)
+                            {
+                                foreach (Wz_Node data in vCoreData.Nodes)
+                                {
+                                    Wz_Node connectSkill = data.FindNodeByPath("connectSkill").ResolveUol();
+                                    Wz_Node jobIDValue = data.FindNodeByPath("job").ResolveUol();
+                                    List<int> applicableJobID = new List<int>();
+                                    foreach (Wz_Node jobID in jobIDValue.Nodes)
+                                    {
+                                        applicableJobID.Add(jobID.GetValueEx<int>(0));
+                                    }
+                                    if (connectSkill == null)
+                                    {
+                                        int skillIDValue = data.FindNodeByPath("spCoreOption\\effect\\skill_id").ResolveUol().GetValueEx<int>(0);
+                                        if (!FifthJobSkillToJobID.ContainsKey(skillIDValue)) FifthJobSkillToJobID.Add(skillIDValue, [0]);
+                                    }
+                                    else
+                                    {
+                                        foreach (Wz_Node skillID in connectSkill.Nodes)
+                                        {
+                                            int skillIDValue = skillID.GetValueEx<int>(0);
+                                            if (skillIDValue > 0 && !FifthJobSkillToJobID.ContainsKey(skillIDValue))
+                                            {
+                                                FifthJobSkillToJobID.Add(skillIDValue, applicableJobID);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            SkillTooltipRender2 tooltip = new SkillTooltipRender2();
+                            tooltip.StringLinker = this.stringLinker;
+                            tooltip.ShowObjectID = Setting.Skill.ShowID;
+                            tooltip.ShowDelay = Setting.Skill.ShowDelay;
+                            tooltip.IgnoreEvalError = Setting.Skill.IgnoreEvalError;
+                            tooltip.Enable22AniStyle = Setting.Misc.Enable22AniStyle;
+                            foreach (var i in selectedJob)
+                            {
+                                var jobImg = PluginManager.FindWz($"Skill\\{i:D3}.img\\skill");
+                                if (jobImg == null)
+                                {
+                                    continue;
+                                }
+                                foreach (var j in jobImg.Nodes)
+                                {
+                                    StringResult sr;
+                                    string skillName;
+                                    if (tooltip.StringLinker == null || !tooltip.StringLinker.StringSkill.TryGetValue(int.Parse(j.Text), out sr))
+                                    {
+                                        sr = new StringResultSkill();
+                                        sr.Name = "(null)";
+                                    }
+                                    skillName = sr.Name;
+                                    labelX2.Text = string.Format("내보내는 중: {0} - {1}", j.Text, skillName);
+                                    Skill skill = Skill.CreateFromNode(j, PluginManager.FindWz, PluginManager.FindWz);
+                                    if (skill != null)
+                                    {
+                                        skill.Level = skill.MaxLevel;
+                                        tooltip.Skill = skill;
+                                    }
+                                    else
+                                    {
+                                        continue;
+                                    }
+                                    Bitmap resultImage = tooltip.Render();
+                                    string categoryPath = "";
+                                    if (FifthJobSkillToJobID.ContainsKey(int.Parse(j.Text)))
+                                    {
+                                        categoryPath = ItemStringHelper.GetFifthJobName(int.Parse(j.Text), FifthJobSkillToJobID[int.Parse(j.Text)]);
+                                    }
+                                    else
+                                    {
+                                        categoryPath = ItemStringHelper.GetJobName(i) ?? "기타";
+                                    }
+                                    if (!Directory.Exists(Path.Combine(exportedFolder, categoryPath)))
+                                    {
+                                        Directory.CreateDirectory(Path.Combine(exportedFolder, categoryPath));
+                                    }
+                                    string imageName = Path.Combine(exportedFolder, categoryPath, "스킬_" + j.Text + "_" + RemoveInvalidFileNameChars(skillName) + ".png");
+                                    if (File.Exists(imageName)) File.Delete(imageName);
+                                    resultImage.Save(imageName, System.Drawing.Imaging.ImageFormat.Png);
+                                    resultImage.Dispose();
+                                }
+                                if (FifthJobSkillToJobID.Count > 0)
+                                {
+                                    foreach (var kvp in FifthJobSkillToJobID)
+                                    {
+                                        if (kvp.Value.Contains(i))
+                                        {
+                                            var skillNode = PluginManager.FindWz($"Skill\\{kvp.Key / 10000}.img\\skill\\{kvp.Key}");
+                                            if (skillNode == null)
+                                            {
+                                                continue;
+                                            }
+                                            StringResult sr;
+                                            string skillName;
+                                            if (tooltip.StringLinker == null || !tooltip.StringLinker.StringSkill.TryGetValue(int.Parse(skillNode.Text), out sr))
+                                            {
+                                                sr = new StringResultSkill();
+                                                sr.Name = "(null)";
+                                            }
+                                            skillName = sr.Name;
+                                            labelX2.Text = string.Format("내보내는 중: {0} - {1}", skillNode.Text, skillName);
+                                            Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz, PluginManager.FindWz);
+                                            if (skill != null)
+                                            {
+                                                skill.Level = skill.MaxLevel;
+                                                tooltip.Skill = skill;
+                                            }
+                                            else
+                                            {
+                                                continue;
+                                            }
+                                            Bitmap resultImage = tooltip.Render();
+                                            string categoryPath = ItemStringHelper.GetFifthJobName(kvp.Key, kvp.Value) ?? "기타";
+                                            if (!Directory.Exists(Path.Combine(exportedFolder, categoryPath)))
+                                            {
+                                                Directory.CreateDirectory(Path.Combine(exportedFolder, categoryPath));
+                                            }
+                                            string imageName = Path.Combine(exportedFolder, categoryPath, "스킬_" + skillNode.Text + "_" + RemoveInvalidFileNameChars(skillName) + ".png");
+                                            if (File.Exists(imageName)) File.Delete(imageName);
+                                            resultImage.Save(imageName, System.Drawing.Imaging.ImageFormat.Png);
+                                            resultImage.Dispose();
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBoxEx.Show(ex.ToString(), "오류");
+                    }
+                    finally
+                    {
+                        sw.Stop();
+                        btnSkillTooltipExport.Enabled = true;
+                        labelX2.Text = "내보내기 완료. 소요 시간: " + sw.Elapsed.ToString();
+                    }
+                    labelItemStatus.Text = "내보내기 완료: " + exportedFolder;
+
+                }
+            }
+        }
+
         private void btnExportSkillOption_Click(object sender, EventArgs e)
         {
             FolderBrowserDialog dlg = new FolderBrowserDialog();
@@ -4539,6 +4862,14 @@ namespace WzComparerR2
                     openWz(WcR2Config.Default.RecentDocuments[0]);
                 }
             }
+        }
+
+        private static string RemoveInvalidFileNameChars(string fileName)
+        {
+            if (String.IsNullOrEmpty(fileName)) return "Unknown";
+            string invalidChars = new string(System.IO.Path.GetInvalidFileNameChars());
+            string regexPattern = $"[{Regex.Escape(invalidChars)}]";
+            return Regex.Replace(fileName, regexPattern, "_");
         }
     }
 

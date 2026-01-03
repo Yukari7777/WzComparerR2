@@ -26,6 +26,13 @@ namespace WzComparerR2
             this.comboBoxEx1.SelectedIndex = 0;
             this.comboBoxEx2.SelectedIndex = 0;
 
+            cmbPreferredStringCopyMethod.Items.AddRange(new[]
+                {
+                new ComboItem("Raw String") { Value = 0 },
+                new ComboItem("Plain String") { Value = 1 },
+                //new ComboItem("MapleWiki Optimized") { Value = 2 },
+            });
+
             this.comboBoxEx3.Items.AddRange(AvatarCanvas.HairColor.Select(color =>
             {
                 var comboBoxItem = new DevComponents.DotNetBar.ComboBoxItem();
@@ -150,6 +157,48 @@ namespace WzComparerR2
         }
 
         [Link]
+        public bool DamageSkin_ShowDamageSkinID
+        {
+            get { return chkShowDamageSkinID.Checked; }
+            set { chkShowDamageSkinID.Checked = value; }
+        }
+
+        [Link]
+        public bool DamageSkin_ShowDamageSkin
+        {
+            get { return chkShowDamageSkin.Checked; }
+            set { chkShowDamageSkin.Checked = value; }
+        }
+
+        [Link]
+        public bool DamageSkin_UseMiniSize
+        {
+            get { return chkUseMiniSize.Checked; }
+            set { chkUseMiniSize.Checked = value; }
+        }
+
+        [Link]
+        public bool DamageSkin_AlwaysUseMseaFormat
+        {
+            get { return chkAlwaysUseMseaFormat.Checked; }
+            set { chkAlwaysUseMseaFormat.Checked = value; }
+        }
+
+        [Link]
+        public bool DamageSkin_DisplayUnitOnSingleLine
+        {
+            get { return chkDisplayUnitOnSingleLine.Checked; }
+            set { chkDisplayUnitOnSingleLine.Checked = value; }
+        }
+
+        [Link]
+        public long DamageSkin_DamageSkinNumber
+        {
+            get { return long.TryParse(txtDamageSkinNumber.Text, out long val) ? val : 0; }
+            set { txtDamageSkinNumber.Text = value.ToString(); }
+        }
+
+        [Link]
         public bool Gear_ShowLevelOrSealed
         {
             get { return checkBoxX6.Checked; }
@@ -249,6 +298,13 @@ namespace WzComparerR2
         }
 
         [Link]
+        public bool Npc_ShowAllIllustAtOnce
+        {
+            get { return chkShowAllIllustAtOnce.Checked; }
+            set { chkShowAllIllustAtOnce.Checked = value; }
+        }
+
+        [Link]
         public int Quest_DefaultState
         {
             get { return comboBoxExQuestState.SelectedIndex; }
@@ -267,6 +323,23 @@ namespace WzComparerR2
         {
             get { return chkEnable22AniStyle.Checked; }
             set { chkEnable22AniStyle.Checked = value; }
+        }
+
+        [Link]
+        public int Misc_PreferredStringCopyMethod
+        {
+            get
+            {
+                return ((cmbPreferredStringCopyMethod.SelectedItem as ComboItem)?.Value as int?) ?? 0;
+            }
+            set
+            {
+                var items = cmbPreferredStringCopyMethod.Items.Cast<ComboItem>();
+                var item = items.FirstOrDefault(_item => _item.Value as int? == value)
+                    ?? items.Last();
+                item.Value = value;
+                cmbPreferredStringCopyMethod.SelectedItem = item;
+            }
         }
 
         public void Load(CharaSimConfig config)
@@ -319,6 +392,20 @@ namespace WzComparerR2
             this.comboBoxExQuestState.Enabled = !this.chkQAS.Checked;
             this.labelXQS.Enabled = !this.chkQAS.Checked;
             this.labelXQSHint.Enabled = !this.chkQAS.Checked;
+        }
+
+        private void txtDamageSkinNumber_TextChanged(object sender, EventArgs e)
+        {
+            this.buttonX1.Enabled = !(string.IsNullOrEmpty(txtDamageSkinNumber.Text) || txtDamageSkinNumber.Text == "0");
+
+            string digitsOnly = new string(txtDamageSkinNumber.Text.Where(char.IsDigit).ToArray());
+
+            if (txtDamageSkinNumber.Text != digitsOnly)
+            {
+                int cursorPos = txtDamageSkinNumber.SelectionStart;
+                txtDamageSkinNumber.Text = digitsOnly;
+                txtDamageSkinNumber.SelectionStart = Math.Min(cursorPos, txtDamageSkinNumber.Text.Length);
+            }
         }
 
         private sealed class LinkAttribute : Attribute

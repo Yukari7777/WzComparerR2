@@ -103,7 +103,7 @@ namespace WzComparerR2.CharaSim
                 case GearPropType.bdR: return "보스 몬스터 공격 시 데미지 +" + value + "%";
                 case GearPropType.incIMDR:
                 case GearPropType.imdR: return "몬스터 방어율 무시 : +" + value + "%";
-                //case GearPropType.limitBreak:return "伤害上限突破至" + ToChineseNumberExpr(value) + "。";
+                //case GearPropType.limitBreak:return "伤害上限突破至" + ToCJKNumberExpr(value) + "。";
                 case GearPropType.reduceReq: return "착용 레벨 감소 : - " + value;
                 case GearPropType.nbdR: return "일반 몬스터 공격 시 데미지 : +" + value + "%";
 
@@ -556,6 +556,7 @@ namespace WzComparerR2.CharaSim
                 case GearType.hair:
                 case GearType.hair2:
                 case GearType.hair3:
+                case GearType.hair4:
                 case GearType.hair_n:
                 case GearType.hair2_n: return "헤어";
                 case GearType.faceAccessory: return "얼굴장식";
@@ -1359,6 +1360,9 @@ namespace WzComparerR2.CharaSim
                 case 12005: return "카마도 탄지로";
                 case 12100: return "카마도 탄지로";
 
+                case 12006: return "사이타마";
+                case 12200: return "사이타마";
+
                 case 13000: return "핑크빈";
                 case 13001: return "예티";
                 case 13100: return "핑크빈";
@@ -1479,11 +1483,11 @@ namespace WzComparerR2.CharaSim
                 case 18211: return "시아 아스텔(3차)";
                 case 18212: return "시아 아스텔(4차)";
                 case 18214: return "시아 아스텔(6차)";
-                case 18300: return "샤인_궁수(1차)";
-                case 18310: return "샤인_궁수(2차)";
-                case 18311: return "샤인_궁수(3차)";
-                case 18312: return "샤인_궁수(4차)";
-                case 18314: return "샤인_궁수(6차)";
+                case 18300: return "아이엘(1차)";
+                case 18310: return "아이엘(2차)";
+                case 18311: return "아이엘(3차)";
+                case 18312: return "아이엘(4차)";
+                case 18314: return "아이엘(6차)";
                 case 18400: return "샤인_도적(1차)";
                 case 18410: return "샤인_도적(2차)";
                 case 18411: return "샤인_도적(3차)";
@@ -1494,7 +1498,7 @@ namespace WzComparerR2.CharaSim
                 case 18511: return "샤인_해적(3차)";
                 case 18512: return "샤인_해적(4차)";
                 case 18514: return "샤인_해적(6차)";
-                
+
 
                 case 40000: return "5차";
                 case 40001: return "5차(전사)";
@@ -1510,35 +1514,256 @@ namespace WzComparerR2.CharaSim
             }
             return null;
         }
-
-        public static string ToChineseNumberExpr(long value)
+        
+        public static string GetFifthJobName(int skillCode, List<int> jobId)
         {
-            var sb = new StringBuilder(16);
+            string jobName = "";
+            switch (jobId.Count)
+            {
+                case 0:
+                    jobName = GetJobName(skillCode / 10000);
+                    break;
+                case 1:
+                    if (jobId[0] == 0)
+                    {
+                        jobName = GetJobName(skillCode / 10000);
+                    }
+                    else
+                    {
+                        jobName = GetJobName(jobId[0]);
+                        jobName = jobName.Contains("(4") ? jobName.Replace("(4", "(5") : jobName + "(5차)";
+                    }
+                    break;
+                default:
+                    bool isSameFaction = true;
+                    int faction = jobId[0] / 1000;
+                    if (faction == 5) faction = 1;
+                    foreach (int id in jobId.Skip(1))
+                    {
+                        if (id == 0) continue;
+                        isSameFaction = isSameFaction && (id / 1000 == faction);
+                    }
+                    if (isSameFaction)
+                    {
+                        switch (faction)
+                        {
+                            case 0: jobName = "5차(모험가)"; break; 
+                            case 1: 
+                            case 5: jobName = "5차(시그너스 기사단)"; break; 
+                            case 2: jobName = "5차(영웅)"; break; 
+                            case 3: jobName = "5차(레지스탕스)"; break; 
+                            case 4: jobName = "5차(새벽의 진)"; break; 
+                            case 6: jobName = "5차(노바)"; break; 
+                            case 10: jobName = "5차(초월자)"; break; 
+                            case 11: jobName = "5차(비스트테이머)"; break; 
+                            // case 12: jobName = "5차(애니메이션 콜라보레이션)"; break; 
+                            case 13: jobName = "5차(몬스터)"; break; 
+                            case 14: jobName = "5차(프렌즈 월드)"; break; 
+                            case 15: jobName = "5차(레프)"; break; 
+                            case 16: jobName = "5차(아니마)"; break; 
+                            case 17: jobName = "5차(강호)"; break; 
+                            case 18: jobName = "5차(샤인)"; break;
+                        }
+                    }
+                    else
+                    {
+                        jobName = GetJobName(skillCode / 10000);
+                    }
+                    break;
+            }
+            return jobName;
+        }
+
+        public static string ToCJKNumberExpr(long value, bool detailedExpr = false)
+        {
+            var sb = new StringBuilder(32);
             bool firstPart = true;
             if (value < 0)
             {
                 sb.Append("-");
                 value = -value; // just ignore the exception -2147483648
             }
-            if (value >= 1_0000_0000)
+            if (detailedExpr)
             {
-                long part = value / 1_0000_0000;
-                sb.AppendFormat("{0}억", part);
-                value -= part * 1_0000_0000;
-                firstPart = false;
+                string[] smallUnits = { "", "십", "백", "천" }; // Korean: 십, 백, 천; Chinese+Japanese: 十, 百, 千
+                string[] bigUnits = { "", "만", "억", "조", "경" }; // Korean: 만, 억, 조, 경; TradChinese: 萬, 億, 兆, 京; SimpChinese: 万, 亿, 兆, 京; Japanese: 万, 億, 兆, 京;
+
+                string digits = value.ToString();
+                int len = digits.Length;
+
+                bool blockHasValue = false;
+                int zeroCount = 0;
+
+                for (int i = 0; i < len; i++)
+                {
+                    int posFromRight = len - i - 1;
+                    int smallUnitIndex = posFromRight % 4;
+                    int bigUnitIndex = posFromRight / 4;
+
+                    char d = digits[i];
+
+                    if (d == '0')
+                    {
+                        zeroCount++;
+                    }
+                    else
+                    {
+                        if (zeroCount > 0 && zeroCount <= 3)
+                        {
+                            sb.Append('0');
+                        }
+
+                        zeroCount = 0;
+
+                        sb.Append(d);
+                        if (smallUnitIndex > 0)
+                            sb.Append(smallUnits[smallUnitIndex]);
+
+                        blockHasValue = true;
+                    }
+
+                    if (smallUnitIndex == 0)
+                    {
+                        if (blockHasValue && bigUnitIndex > 0 && bigUnitIndex < bigUnits.Length)
+                            sb.Append(bigUnits[bigUnitIndex]);
+
+                        blockHasValue = false;
+                        zeroCount = 0;
+                    }
+                }
             }
-            if (value >= 1_0000)
+            else
             {
-                long part = value / 1_0000;
-                sb.Append(firstPart ? null : " ");
-                sb.AppendFormat("{0}만", part);
-                value -= part * 1_0000;
-                firstPart = false;
+                if (value >= 1_0000_0000_0000_0000)
+                {
+                    long part = value / 1_0000_0000_0000_0000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}경", part); // Korean: 경, Chinese+Japanese: 京; English: Q
+                    value -= part * 1_0000_0000_0000_0000;
+                    firstPart = false;
+                }
+                if (value >= 1_0000_0000_0000)
+                {
+                    long part = value / 1_0000_0000_0000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}조", part); // Korean: 조, Chinese+Japanese: 兆; English: T
+                    value -= part * 1_0000_0000_0000;
+                    firstPart = false;
+                }
+                if (value >= 1_0000_0000)
+                {
+                    long part = value / 1_0000_0000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}억", part); // Korean: 억, TradChinese+Japanese: 億, SimpChinese: 亿
+                    value -= part * 1_0000_0000;
+                    firstPart = false;
+                }
+                if (value >= 1_0000)
+                {
+                    long part = value / 1_0000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}만", part); // Korean: 만, TradChinese: 萬, SimpChinese+Japanese: 万
+                    value -= part * 1_0000;
+                    firstPart = false;
+                }
+                if (value > 0)
+                {
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}", value);
+                }
             }
-            if (value > 0)
+
+            return sb.Length > 0 ? sb.ToString() : "0";
+        }
+
+        public static string ToThousandsNumberExpr(long value, bool isMsea = false)
+        {
+            var sb = new StringBuilder(32);
+            bool firstPart = true;
+            if (isMsea)
             {
-                sb.Append(firstPart ? null : " ");
-                sb.AppendFormat("{0}", value);
+                if (value < 0)
+                {
+                    sb.Append("-");
+                    value = -value; // just ignore the exception -2147483648
+                }
+                if (value >= 1_0000_0000_0000_0000)
+                {
+                    long part = value / 1_0000_0000_0000_0000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}Q", part);
+                    value -= part * 1_0000_0000_0000_0000;
+                    firstPart = false;
+                }
+                if (value >= 1_000_000_000_000)
+                {
+                    long part = value / 1_000_000_000_000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}T", part);
+                    value -= part * 1_000_000_000_000;
+                    firstPart = false;
+                }
+                if (value >= 1_000_000_000)
+                {
+                    long part = value / 1_000_000_000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}B", part);
+                    value -= part * 1_000_000_000;
+                    firstPart = false;
+                }
+                if (value >= 1_000_000)
+                {
+                    long part = value / 1_000_000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}M", part);
+                    value -= part * 1_000_000;
+                    firstPart = false;
+                }
+                if (value >= 1_000)
+                {
+                    long part = value / 1_000;
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}K", part);
+                    value -= part * 1_000;
+                    firstPart = false;
+                }
+                if (value > 0)
+                {
+                    sb.Append(firstPart ? null : " ");
+                    sb.AppendFormat("{0}", value);
+                }
+            }
+            else
+            {
+                if (value < 0)
+                {
+                    sb.Append("-");
+                    value = -value; // just ignore the exception -2147483648
+                }
+                /* if (value >= 1_000_000_000_000) // For future proofing
+                {
+                    double part = Math.Round((double)value / 1_000_000_000_000, 1);
+                    sb.AppendFormat("{0}T", part);
+                } */
+                if (value >= 1_000_000_000)
+                {
+                    double part = Math.Round((double)value / 1_000_000_000, 1);
+                    sb.AppendFormat("{0}B", part);
+                }
+                else if (value >= 1_000_000)
+                {
+                    double part = Math.Round((double)value / 1_000_000, 1);
+                    sb.AppendFormat("{0}M", part);
+                }
+                else if (value >= 1_000)
+                {
+                    double part = Math.Round((double)value / 1_000, 1);
+                    sb.AppendFormat("{0}K", part);
+                }
+                else if (value > 0)
+                {
+                    sb.AppendFormat("{0}", value);
+                }
             }
 
             return sb.Length > 0 ? sb.ToString() : "0";

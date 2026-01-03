@@ -26,6 +26,8 @@ namespace WzComparerR2.CharaSim
         public ItemType type { get; set; }
 
         public List<GearLevelInfo> Levels { get; internal set; }
+        public int? FamiliarID { get; set; }
+        public int Grade { get; set; }
 
         public Dictionary<ItemPropType, long> Props { get; private set; }
         public Dictionary<ItemSpecType, long> Specs { get; private set; }
@@ -132,6 +134,39 @@ namespace WzComparerR2.CharaSim
 
                         case "damageSkinID":
                             item.DamageSkinID = Convert.ToInt32(subNode.Value);
+                            break;
+
+                        case "familiarID":
+                            item.FamiliarID = Convert.ToInt32(subNode.Value);
+                            break;
+
+                        case "grade":
+                            if (int.TryParse(Convert.ToString(subNode.Value), out _))
+                            {
+                                item.Grade = Convert.ToInt32(subNode.Value);
+                            }
+                            else
+                            {
+                                switch (Convert.ToString(subNode.Value))
+                                {
+                                    default:
+                                    case "normal":
+                                        item.Grade = 0;
+                                        break;
+                                    case "rare":
+                                        item.Grade = 1;
+                                        break;
+                                    case "epic":
+                                        item.Grade = 2;
+                                        break;
+                                    case "unique":
+                                        item.Grade = 3;
+                                        break;
+                                    case "legendary":
+                                        item.Grade = 4;
+                                        break;
+                                }
+                            }
                             break;
 
                         case "consumableFrom":
@@ -277,6 +312,15 @@ namespace WzComparerR2.CharaSim
                             break;
                     }
                 }
+            }
+
+            if (item.Icon.Bitmap == null)
+            {
+                item.Icon = new BitmapOrigin(item.IconRaw.Bitmap, item.IconRaw.Origin);
+            }
+            else if (item.IconRaw.Bitmap == null)
+            {
+                item.IconRaw = new BitmapOrigin(item.Icon.Bitmap, item.Icon.Origin);
             }
 
             // customChair

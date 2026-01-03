@@ -569,15 +569,40 @@ namespace WzComparerR2.WzLib
             return wzImg;
         }
 
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer)
+        {
+            DumpAsXml(node, writer, null, false, false, false, null);
+        }
+
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, IList<string> filterTags)
+        {
+            DumpAsXml(node, writer, null, false, false, false, filterTags);
+        }
+
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
         {
-            DumpAsXml(node, writer, dir, false, true, false);
+            DumpAsXml(node, writer, dir, false, true, false, null);
         }
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
         {
+            DumpAsXml(node, writer, dir, dumpRaw, dumpExt, leaveRef, null);
+        }
+
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, IList<string> filterTags)
+        {
             object value = node.Value;
 
+            // 过滤：根据 tag 名称（类名小写）匹配
+            if (filterTags != null && value != null) {
+                var currentTag = value.GetType().Name.ToLower();  // 例如 "wz_int"
+                foreach (var tag in filterTags) {
+                    if (tag != null && currentTag == tag.Trim().ToLower()) {
+                        return; // 匹配到，跳过输出
+                    }
+                }
+            }
+            
             if (value == null || value is Wz_Image)
             {
                 writer.WriteStartElement("dir");
@@ -701,7 +726,7 @@ namespace WzComparerR2.WzLib
             //输出子节点
             foreach (var child in node.Nodes)
             {
-                DumpAsXml(child, writer, dir, dumpRaw, dumpExt, leaveRef);
+                DumpAsXml(child, writer, dir, dumpRaw, dumpExt, leaveRef, filterTags);
             }
 
             //结束标识

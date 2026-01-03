@@ -125,42 +125,76 @@ namespace WzComparerR2
             return FrameAnimationData.CreateFromPngNode(node, this.GraphicsDevice, PluginBase.PluginManager.FindWz);
         }
 
-        public FrameAnimationData ConvertSpineToFrameAnimation(AnimationItem aniItem, int delay = 60)
+        public FrameAnimationData CaptureAnimation(IEnumerable<AnimationItem> aniItems, IEnumerable<Tuple<int, int>> aniItemTimes, int time = 0)
         {
             var frameAnimationData = new FrameAnimationData();
-            if (delay > 0)
+
+            var rec = new AnimationRecoder(this.GraphicsDevice);
+            rec.Items.AddRange(aniItems);
+            rec.ItemTimes.AddRange(aniItemTimes);
+            int length = rec.GetMaxLength();
+
+            if (time < 0 || time > length)
             {
-                var rec = new AnimationRecoder(this.GraphicsDevice);
-
-                rec.Items.Add(aniItem);
-                int length = Math.Min(rec.GetMaxLength(), 10000); // 최대 길이 10초 제한
-                IEnumerable<int> frames = length == 0 ? new[] { 0 } : Enumerable.Range(0, Math.Max((int)Math.Ceiling(1.0 * length / delay) - 1, 0));
-
-                rec.ResetAll();
-                rec.BackgroundColor = Color.Transparent;
-                var rect = aniItem.Measure();
-                rec.Begin(rect);
-                for (int i = 0; i < frames.Count(); i++)
-                {
-                    rect = aniItem.Measure();
-                    rec.ResetRenderTarget(rect);
-                    rec.Draw();
-
-                    var t2d = rec.GetPngTexture();
-                    var frame = new Frame(t2d, new Point(-rect.Left, -rect.Top), 0, delay, true);
-                    frameAnimationData.Frames.Add(frame);
-
-                    rec.Update(TimeSpan.FromMilliseconds(delay));
-                }
-                rec.End();
+                return null;
             }
 
-            this.DisposeAnimationItem(aniItem);
+            rec.ResetAll();
+            rec.BackgroundColor = Color.Transparent;
+            rec.Update(TimeSpan.FromMilliseconds(time));
+            Rectangle bounds = new Rectangle();
+            foreach (var aniItem in rec.Items)
+            {
+                var rect = aniItem.Measure();
+                bounds = Microsoft.Xna.Framework.Rectangle.Union(bounds, rect);
+            }
+            rec.Begin(bounds);
+            rec.Draw();
+            var t2d = rec.GetPngTexture();
+            var frame = new Frame(t2d, new Point(-bounds.Left, -bounds.Top), 0, 120, true);
+            frameAnimationData.Frames.Add(frame);
+            rec.End();
 
             if (frameAnimationData.Frames.Count > 0)
                 return frameAnimationData;
             else
                 return null;
+        }
+
+        public List<System.Drawing.Bitmap> GetSpineDefault(Wz_Node node)
+        {
+            var ret = new List<System.Drawing.Bitmap>();
+            ISpineAnimationData spineData = this.LoadSpineAnimation(SpineLoader.Detect(node));
+            AnimationItem spineAni = spineData?.CreateAnimator() as AnimationItem;
+            if (spineAni != null)
+            {
+                var aniList = (spineAni as ISpineAnimator).Animations.ToArray();
+                foreach (var aniName in aniList)
+                {
+                    (spineAni as ISpineAnimator).SelectedAnimationName = aniName;
+                    FrameAnimationData frameData = this.CaptureAnimation([spineAni], [new Tuple<int, int>(0, spineAni.Length)], 0);
+
+                    if (frameData != null && frameData.Frames.Count == 1)
+                    {
+                        System.Drawing.Bitmap bmp;
+                        var frame = frameData.Frames[0];
+                        byte[] frameDataArray = new byte[frame.Texture.Width * frame.Texture.Height * 4];
+                        frame.Texture.GetData(frameDataArray);
+                        var targetSize = new Point(frame.Texture.Width, frame.Texture.Height);
+                        unsafe
+                        {
+                            fixed (byte* pFrameBuffer = frameDataArray)
+                            {
+                                bmp = new System.Drawing.Bitmap(targetSize.X, targetSize.Y, targetSize.X * 4, System.Drawing.Imaging.PixelFormat.Format32bppArgb, new IntPtr(pFrameBuffer));
+                            }
+                        }
+                        ret.Add(bmp);
+                    }
+                    this.DisposeAnimationItem(new FrameAnimator(frameData));
+                }
+                this.DisposeAnimationItem(spineAni);
+            }
+            return ret;
         }
 
         public void ShowAnimation(FrameAnimationData data)
@@ -256,6 +290,11 @@ namespace WzComparerR2
                     return;
                 }
                 aniItem.Data.Frames[0].Delay = options.PngDelay;
+            }
+
+            if (options.FlipX || options.FlipY)
+            {
+                FrameAnimationData.ApplyFlip(this.GraphicsDevice, aniItem.Data, options.FlipX, options.FlipY);
             }
 
             if ((options.SpeedX != 0 && options.GoX != 0) || (options.SpeedY != 0 && options.GoY != 0))
