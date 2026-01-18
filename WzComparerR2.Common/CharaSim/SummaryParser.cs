@@ -15,7 +15,7 @@ namespace WzComparerR2.CharaSim
             GlobalVariableMapping["comboConAran"] = "aranComboCon";
         }
 
-        public static string GetSkillSummary(string H, int Level, Dictionary<string, string> CommonProps, SummaryParams param, SkillSummaryOptions options = default)
+        public static string GetSkillSummary(string H, int Level, Dictionary<string, string> CommonProps, List<string> extraProps, SummaryParams param, SkillSummaryOptions options = default)
         {
             if (H == null) return null;
 
@@ -50,7 +50,7 @@ namespace WzComparerR2.CharaSim
                         for (int i = len; i > 0; i--)
                         {
                             propKey = H.Substring(idx + 1, i);
-                            if (GetValueIgnoreCase(CommonProps, propKey, out prop))
+                            if (GetValueIgnoreCase(CommonProps, extraProps, propKey, out prop))
                             {
                                 len = i;
                                 break;
@@ -61,18 +61,25 @@ namespace WzComparerR2.CharaSim
                     {
                         try
                         {
-                            decimal val = Calculator.Parse(prop.ToLower(), Level);
-                            if (options.ConvertCooltimeMS && propKey == "cooltimeMS")
+                            if (prop.StartsWith("#$x"))
                             {
-                                sb.AppendFormat("{0:f2}", val / 1000);
-                            }
-                            else if (options.ConvertPerM && propKey.EndsWith("PerM", StringComparison.Ordinal))
-                            {
-                                sb.AppendFormat("{0:f1}", val / 100);
+                                sb.Append(prop);
                             }
                             else
                             {
-                                sb.Append(val);
+                                decimal val = Calculator.Parse(prop.ToLower(), Level);
+                                if (options.ConvertCooltimeMS && propKey == "cooltimeMS")
+                                {
+                                    sb.AppendFormat("{0:f2}", val / 1000);
+                                }
+                                else if (options.ConvertPerM && propKey.EndsWith("PerM", StringComparison.Ordinal))
+                                {
+                                    sb.AppendFormat("{0:f1}", val / 100);
+                                }
+                                else
+                                {
+                                    sb.Append(val);
+                                }
                             }
                         }
                         catch
@@ -103,7 +110,7 @@ namespace WzComparerR2.CharaSim
                         }
                         if (prop != null)
                         {
-                            if (prop != "" && GetValueIgnoreCase(CommonProps, prop, out prop))
+                            if (prop != "" && GetValueIgnoreCase(CommonProps, extraProps, prop, out prop))
                             {
                                 try
                                 {
@@ -217,9 +224,17 @@ namespace WzComparerR2.CharaSim
             return Regex.Replace(sb.ToString().Replace("\t", ""), @"(\\r|\\n)+$", "");
         }
 
-        private static bool GetValueIgnoreCase(Dictionary<string, string> dict, string key, out string value)
+        private static bool GetValueIgnoreCase(Dictionary<string, string> dict, List<string> extraProps, string key, out string value)
         {
             //bool find = false;
+            foreach (var k in extraProps)
+            {
+                if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = $"#$x{k}#";
+                    return true;
+                }
+            }
             foreach (var kv in dict)
             {
                 if (kv.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
@@ -232,14 +247,47 @@ namespace WzComparerR2.CharaSim
             return false;
         }
 
-        public static string GetSkillSummary(Skill skill, StringResult sr, SummaryParams param)
+        public static string CalcSingleProp(int Level, string propKey, string prop, SkillSummaryOptions options = default)
+        {
+            StringBuilder sb = new StringBuilder();
+            try
+            {
+                decimal val = Calculator.Parse(prop.ToLower(), Level);
+                if (options.ConvertCooltimeMS && propKey == "cooltimeMS")
+                {
+                    sb.AppendFormat("{0:f2}", val / 1000);
+                }
+                else if (options.ConvertPerM && propKey.EndsWith("PerM", StringComparison.Ordinal))
+                {
+                    sb.AppendFormat("{0:f1}", val / 100);
+                }
+                else
+                {
+                    sb.Append(val);
+                }
+            }
+            catch
+            {
+                if (options.IgnoreEvalError)
+                {
+                    sb.Append("NaN");
+                }
+                else
+                {
+                    throw;
+                }
+            }
+            return sb.ToString();
+        }
+
+        public static string GetSkillSummary(Skill skill, StringResultSkill sr, SummaryParams param)
         {
             if (skill == null)
                 return null;
             return GetSkillSummary(skill, skill.Level, sr, param);
         }
 
-        public static string GetSkillSummary(Skill skill, int level, StringResult sr, SummaryParams param, SkillSummaryOptions options = default, bool doHighlight = false, int? skillID = null, Dictionary<int, HashSet<string>> DiffSkillTags = null)
+        public static string GetSkillSummary(Skill skill, int level, StringResultSkill sr, SummaryParams param, SkillSummaryOptions options = default, bool doHighlight = false, int? skillID = null, Dictionary<int, HashSet<string>> DiffSkillTags = null)
         {
             if (skill == null || sr == null)
                 return null;
@@ -248,7 +296,7 @@ namespace WzComparerR2.CharaSim
             if (skill.PreBBSkill) //用level声明的技能
             {
                 string hsSummary;
-                if (skill.Level == level && skill.Common.TryGetValue("hs", out string hs) 
+                if (skill.Level == level && skill.Common.TryGetValue("hs", out string hs)
                     && (hsSummary = sr[hs]) != null) // fix for skill 170001005, 170011005
                 {
                     h = hsSummary;
@@ -271,13 +319,26 @@ namespace WzComparerR2.CharaSim
                     }
                 }
 
-                return GetSkillSummary(h, level, levelCommon, param, options);
+                return GetSkillSummary(h, level, levelCommon, skill.ExtraPropNames, param, options);
             }
             else
             {
                 if (sr.SkillH.Count > 0)
                 {
                     h = sr.SkillH[0];
+                }
+
+                if (sr.SkillExtraH.Count > 0)
+                {
+                    // SkillExtraH is always sorted
+                    foreach (var kv in sr.SkillExtraH)
+                    {
+                        if (level < kv.Key)
+                        {
+                            break;
+                        }
+                        h = kv.Value;
+                    }
                 }
 
                 if (doHighlight && DiffSkillTags != null && skillID != null)
@@ -288,7 +349,7 @@ namespace WzComparerR2.CharaSim
                     }
                 }
 
-                return GetSkillSummary(h, level, skill.Common, param, options);
+                return GetSkillSummary(h, level, skill.Common, skill.ExtraPropNames, param, options);
             }
         }
 

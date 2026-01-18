@@ -65,12 +65,14 @@ namespace WzComparerR2.CharaSimControl
         public static readonly Font EquipMDMoris9FontBold = new Font("돋움", 11f, FontStyle.Bold, GraphicsUnit.Pixel);
         public static readonly Font ItemGulimFont = new Font("굴림", 12f, GraphicsUnit.Pixel);
         public static readonly Font ItemGulimFontBold = new Font("굴림", 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+        public static readonly Font NewCTFamiliarNameFont = new Font("Noto Sans SC", 14f, FontStyle.Bold, GraphicsUnit.Pixel);
 
         private static PrivateFontCollection _pfc = new PrivateFontCollection();
         public static Font ItemNameFont2 { get; private set; }
         public static Font ItemDetailFont2 { get; private set; }
         public static Font EquipDetailFont2 { get; private set; }
         public static Font AchievementTitleFont { get; private set; }
+        public static Font FamiliarNameFont { get; private set; }
 
         public static void SetFontFamily(string fontName)
         {
@@ -96,7 +98,7 @@ namespace WzComparerR2.CharaSimControl
             EquipDetailFont2 = new Font(fontName, 11f, GraphicsUnit.Pixel);
         }
 
-        private static void LoadAchvTitleFont()
+        private static void LoadNanumGothicExtraBoldFont()
         {
             try
             {
@@ -110,7 +112,7 @@ namespace WzComparerR2.CharaSimControl
                 Marshal.Copy(bytes, 0, ptr, bytes.Length);
                 _pfc.AddMemoryFont(ptr, bytes.Length);
 
-                var fm = _pfc.Families.LastOrDefault();
+                var fm = _pfc.Families.FirstOrDefault();
                 if (fm != null)
                 {
                     AchievementTitleFont = new Font(fm, 16f, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -123,9 +125,37 @@ namespace WzComparerR2.CharaSimControl
             }
         }
 
+        private static void LoadNotoSansKRBoldFont()
+        {
+            try
+            {
+                if (FamiliarNameFont != null)
+                {
+                    FamiliarNameFont.Dispose();
+                    FamiliarNameFont = null;
+                }
+                var bytes = Resource.NotoSansKRBold;
+                IntPtr ptr = Marshal.AllocCoTaskMem(bytes.Length);
+                Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                _pfc.AddMemoryFont(ptr, bytes.Length);
+
+                var fm = _pfc.Families.FirstOrDefault();
+                if (fm != null)
+                {
+                    FamiliarNameFont = new Font(fm, 15f, FontStyle.Bold, GraphicsUnit.Pixel);
+                }
+                else throw new Exception();
+            }
+            catch
+            {
+                FamiliarNameFont = new Font("Noto Sans KR", 15f, FontStyle.Bold, GraphicsUnit.Pixel);
+            }
+        }
+
         public static void LoadFonts()
         {
-            LoadAchvTitleFont();
+            LoadNanumGothicExtraBoldFont();
+            LoadNotoSansKRBoldFont();
         }
 
         public static readonly Color GearBackColor = Color.FromArgb(204, 0, 51, 85);
@@ -263,6 +293,8 @@ namespace WzComparerR2.CharaSimControl
         public static readonly Brush BarrierAutBrush = new SolidBrush(Color.FromArgb(218, 161, 255));
 
         public static readonly Brush LocationBrush = new SolidBrush(Color.FromArgb(209, 255, 50));
+
+        public static readonly Brush ItemPriceBrush = new SolidBrush(Color.FromArgb(119, 204, 255));
 
         public static Brush GetGearNameBrush(int diff, bool up, bool cash = false, bool petEquip = false)
         {
@@ -1040,25 +1072,21 @@ namespace WzComparerR2.CharaSimControl
             protected override void MeasureRuns(List<Run> runs)
             {
                 List<Run> tempRuns = new List<Run>(MAX_RANGES);
-                int imageWidth = 0;
-                int tmpWidth = 0;
+                int sw = 0;
 
                 foreach (var run in runs)
                 {
                     tempRuns.Add(run);
-                    if (run.IsImage)
-                    {
-                        tmpWidth += run.ImageWidth;
-                    }
                     if (tempRuns.Count >= MAX_RANGES)
                     {
-                        MeasureBatch(tempRuns, imageWidth);
+                        MeasureBatch(tempRuns, sw);
+                        var lastrun = tempRuns[tempRuns.Count - 1];
+                        sw = lastrun.X + lastrun.Width;
                         tempRuns.Clear();
-                        imageWidth = tmpWidth;
                     }
                 }
 
-                MeasureBatch(tempRuns, imageWidth);
+                MeasureBatch(tempRuns, sw);
 
                 //failed
                 if (runs.Where(run => !run.IsBreakLine && run.Length > 0)
@@ -1080,9 +1108,11 @@ namespace WzComparerR2.CharaSimControl
                 }
             }
 
-            private void MeasureBatch(List<Run> runs, int imageWidth = 0)
+            private void MeasureBatch(List<Run> runs, int sw = 0)
             {
                 string text = sb.ToString();
+                string currentFontID = "";
+                Font currentFont = this.font;
                 Func<int, bool> isSingleKoreanChar = (i) => i >= 0 && runs[i].Length == 1 && text[runs[i].StartIndex] >= '가' && text[runs[i].StartIndex] <= '힣';
                 var koreanSize = TR.MeasureText(g, "가", font, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
                 Func<int, bool> isSpace = (i) => i >= 0 && runs[i].Length == 1 && text[runs[i].StartIndex] == ' ';
@@ -1098,6 +1128,14 @@ namespace WzComparerR2.CharaSimControl
                         var layout = new RectangleF();
                         if (this.UseGDIRenderer)
                         {
+                            if (runs[i].FontID != null && currentFontID != runs[i].FontID)
+                            {
+                                currentFontID = runs[i].FontID;
+                                currentFont = GetFont(runs[i].FontID);
+                                koreanSize = TR.MeasureText(g, "가", currentFont, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                                spaceSize = TR.MeasureText(g, " ", currentFont, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                                numberSize = TR.MeasureText(g, "0", currentFont, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                            }
                             var prefixLayout = new Point();
                             if (isSingleKoreanChar(i - 1))
                                 prefixLayout = new Point(runs[i - 1].X + koreanSize.Width, 0);
@@ -1107,24 +1145,24 @@ namespace WzComparerR2.CharaSimControl
                                 prefixLayout = new Point(runs[i - 1].X + spaceSize.Width, 0);
                             else if (isNumber(i - 1))
                                 prefixLayout = new Point(runs[i - 1].X + numberSize.Width, 0);
+                            else if (i > 0)
+                                prefixLayout = new Point(runs[i - 1].X + runs[i - 1].Width, 0);
                             else
-                                prefixLayout = new Point(TR.MeasureText(g, text.Substring(0, runs[i].StartIndex), font, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width
-                                    + imageWidth, 0);
+                                prefixLayout = new Point(sw, 0);
 
                             var currentLayout = new Size();
                             if (isSingleKoreanChar(i))
                                 currentLayout = koreanSize;
                             else if (runs[i].IsImage)
                             {
-                                currentLayout = new Size(runs[i].ImageWidth, runs[i].ImageHeight); ;
-                                imageWidth += currentLayout.Width;
+                                currentLayout = new Size(runs[i].ImageWidth, runs[i].ImageHeight);
                             }
                             else if (isSpace(i))
                                 currentLayout = spaceSize;
                             else if (isNumber(i))
                                 currentLayout = numberSize;
                             else
-                                currentLayout = TR.MeasureText(g, text.Substring(runs[i].StartIndex, runs[i].Length), font, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                                currentLayout = TR.MeasureText(g, text.Substring(runs[i].StartIndex, runs[i].Length), currentFont, Size.Round(infinityRect.Size), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
 
                             layout = new RectangleF(prefixLayout, currentLayout);
                         }
@@ -1205,13 +1243,7 @@ namespace WzComparerR2.CharaSimControl
                         default: color = this.defaultColor; break;
                     }
                 }
-                if (!(this.FontTable?.TryGetValue(fontID, out font) ?? false))
-                {
-                    switch (fontID)
-                    {
-                        default: font = this.font; break;
-                    }
-                }
+                font = GetFont(fontID);
                 if ((this.ImageTable?.TryGetValue(imageID, out bmp) ?? false) && bmp != null) // ImageTable로 전달된 이미지 그리기
                 {
                     var dx = Math.Max((32 - bmp.Width) / 2, 0);
@@ -1231,6 +1263,18 @@ namespace WzComparerR2.CharaSimControl
                         g.DrawString(content, font, brush, this.drawX + x, y, fmt);
                     }
                 }
+            }
+
+            private Font GetFont(string fontID)
+            {
+                if (!(this.FontTable?.TryGetValue(fontID, out var font) ?? false))
+                {
+                    switch (fontID)
+                    {
+                        default: font = this.font; break;
+                    }
+                }
+                return font;
             }
 
             public void Dispose()

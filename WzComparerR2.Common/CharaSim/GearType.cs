@@ -181,6 +181,10 @@ namespace WzComparerR2.CharaSim
         /// </summary>
         celestialLight = 1253,
         /// <summary>
+        /// Onmyo Sen 1254
+        /// </summary>
+        onmyouSen = 1254,
+        /// <summary>
         /// 驯兽魔法棒 1259
         /// </summary>
         magicStick = 1259,
@@ -409,7 +413,11 @@ namespace WzComparerR2.CharaSim
         /// </summary>
         sacredJewel = 135404,
         /// <summary>
-        /// 手杖
+        /// Kanna Reifu 135430
+        /// </summary>
+        kannaReifu = 135430,
+        /// <summary>
+        /// 手杖 136
         /// </summary>
         cane = 136,
         /// <summary>
@@ -545,6 +553,10 @@ namespace WzComparerR2.CharaSim
         /// 그랜드 어센틱심볼 1714
         /// </summary>
         grandAuthenticSymbol = 1714,
+        /// <summary>
+        /// 모래시계 172_37
+        /// </summary>
+        hourGlass = 17237,
         /// <summary>
         /// 珠宝 178
         /// </summary>

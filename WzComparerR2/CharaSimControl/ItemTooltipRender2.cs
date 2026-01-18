@@ -46,9 +46,11 @@ namespace WzComparerR2.CharaSimControl
         public bool LinkRecipeItem { get; set; }
         public bool ShowLevelOrSealed { get; set; }
         public bool ShowNickTag { get; set; }
+        public bool ShowCashPurchasePrice { get; set; }
         public bool CompareMode { get; set; } = false;
         public int CosmeticHairColor { get; set; }
         public int CosmeticFaceColor { get; set; }
+        public int LoadedCommoditiesSlot { get; set; } = 0;
         public bool ShowDamageSkin { get; set; }
         public bool ShowDamageSkinID { get; set; }
         public bool UseMiniSizeDamageSkin { get; set; }
@@ -792,7 +794,7 @@ namespace WzComparerR2.CharaSimControl
             {
                 Wz_Node petDialog = PluginManager.FindWz("String\\PetDialog.img\\" + item.ItemID, this.SourceWzFile);
                 Dictionary<string, int> commandLev = new Dictionary<string, int>();
-                foreach (Wz_Node commandNode in PluginManager.FindWz("Item\\Pet\\" + item.ItemID + ".img\\interact", this.SourceWzFile).Nodes)
+                foreach (Wz_Node commandNode in PluginManager.FindWz("Item\\Pet\\" + item.ItemID + ".img\\interact", this.SourceWzFile)?.Nodes ?? new Wz_Node.WzNodeCollection(null))
                 {
                     foreach (string command in petDialog?.Nodes[commandNode.Nodes["command"].GetValue<string>()].GetValueEx<string>(null)?.Split('|') ?? Enumerable.Empty<string>())
                     {
@@ -1081,6 +1083,42 @@ namespace WzComparerR2.CharaSimControl
                 TextRenderer.DrawText(g, string.Format("· {0} {1}레벨 이상", sr.Name, reqSkillLevel), GearGraphics.ItemDetailFont, new Point(13, picH), ((SolidBrush)GearGraphics.SetItemNameBrush).Color, TextFormatFlags.NoPadding);
                 picH += 16;
                 picH += 6;
+            }
+
+            if (ShowCashPurchasePrice)
+            {
+                List<string> priceList = new List<string>();
+                if (CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot].ContainsKey(item.ItemID))
+                {
+                    foreach (var i in CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot][item.ItemID])
+                    {
+                        if (i.Price == 0) continue;
+                        string currency = i.Meso ? "메소" : "캐시";
+                        string rebootWorld = i.Reboot ? " (리부트 월드)" : "";
+                        priceList.Add(string.Format("#$S - {0}개: {1} {2}{3}#", i.Count, ItemStringHelper.ToCJKNumberExpr(i.Price), currency, rebootWorld));
+                    }
+                }
+                if (priceList.Count > 0)
+                {
+                    var itemPriceColorTable = new Dictionary<string, Color>()
+                    {
+                        { "$S", ((SolidBrush)GearGraphics.ItemPriceBrush).Color },
+                    };
+                    picH += 29;
+                    switch (priceList.Count)
+                    {
+                        /*
+                        case 1:
+                            GearGraphics.DrawString(g, " - 판매가격: " + priceList[0].Replace(" - 1개: ", "").Replace(" - ", ""), GearGraphics.ItemDetailFont, 100, right, ref picH, 16);
+                            break;
+                        */
+                        default:
+                            GearGraphics.DrawString(g, "#$S판매가격 #", GearGraphics.ItemDetailFont, itemPriceColorTable, 100, right, ref picH, 16);
+                            foreach (var i in priceList)
+                                GearGraphics.DrawString(g, i, GearGraphics.ItemDetailFont, itemPriceColorTable, 100, right, ref picH, 16);
+                            break;
+                    }
+                }
             }
 
             picH = Math.Max(iconY + 103, picH + 15);

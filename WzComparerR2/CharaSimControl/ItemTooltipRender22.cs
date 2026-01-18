@@ -49,6 +49,8 @@ namespace WzComparerR2.CharaSimControl
         public bool CompareMode { get; set; } = false;
         public int CosmeticHairColor { get; set; }
         public int CosmeticFaceColor { get; set; }
+        public int LoadedCommoditiesSlot { get; set; } = 0;
+        public bool ShowCashPurchasePrice { get; set; }
         public bool ShowDamageSkin { get; set; }
         public bool ShowDamageSkinID { get; set; }
         public bool UseMiniSizeDamageSkin { get; set; }
@@ -400,6 +402,7 @@ namespace WzComparerR2.CharaSimControl
                 { "c", ((SolidBrush)GearGraphics.Equip22BrushEmphasis).Color },
                 { "$r", ((SolidBrush)GearGraphics.Equip22BrushRed).Color },
                 { "$g", ((SolidBrush)GearGraphics.Equip22BrushLegendary).Color },
+                { "$S", ((SolidBrush)GearGraphics.ItemPriceBrush).Color },
             };
             splitterH = new List<int>();
             picH = 0;
@@ -706,7 +709,7 @@ namespace WzComparerR2.CharaSimControl
             {
                 Wz_Node petDialog = PluginManager.FindWz("String\\PetDialog.img\\" + item.ItemID, this.SourceWzFile);
                 Dictionary<string, int> commandLev = new Dictionary<string, int>();
-                foreach (Wz_Node commandNode in PluginManager.FindWz("Item\\Pet\\" + item.ItemID + ".img\\interact", this.SourceWzFile).Nodes)
+                foreach (Wz_Node commandNode in PluginManager.FindWz("Item\\Pet\\" + item.ItemID + ".img\\interact", this.SourceWzFile)?.Nodes ?? new Wz_Node.WzNodeCollection(null))
                 {
                     foreach (string command in petDialog?.Nodes[commandNode.Nodes["command"].GetValue<string>()].GetValueEx<string>(null)?.Split('|') ?? Enumerable.Empty<string>())
                     {
@@ -1087,7 +1090,7 @@ namespace WzComparerR2.CharaSimControl
                 defaultRenderer.AllowOutOfBounds = false;
                 defaultRenderer.ItemID = this.item.ItemID;
                 defaultRenderer.FamiliarTier = this.item.Grade;
-                defaultRenderer.UseAssembleUI = false;
+                defaultRenderer.UseAssembleUI = true;
                 renderer = defaultRenderer;
             }
             renderer.TargetItem = familiar;
@@ -1200,6 +1203,37 @@ namespace WzComparerR2.CharaSimControl
                 {
                     case 1: tags.Add("#$r카르마의 가위 또는 실버 카르마의 가위 사용 시 1회 교환 가능#"); break;
                     case 2: tags.Add("#$r플래티넘 카르마의 가위 사용 시 1회 교환 가능#"); break;
+                }
+            }
+
+            // purchasePrice
+            if (ShowCashPurchasePrice)
+            {
+                List<string> priceList = new List<string>();
+                if (CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot].ContainsKey(item.ItemID))
+                {
+                    foreach (var i in CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot][item.ItemID])
+                    {
+                        if (i.Price == 0) continue;
+                        string currency = i.Meso ? "메소" : "캐시";
+                        string rebootWorld = i.Reboot ? " (리부트 월드)" : "";
+                        priceList.Add(string.Format("#$S - {0}개: {1} {2}{3}#", i.Count, ItemStringHelper.ToCJKNumberExpr(i.Price), currency, rebootWorld));
+                    }
+                }
+                if (priceList.Count > 0)
+                {
+                    switch (priceList.Count)
+                    {
+                        /*
+                        case 1:
+                            tags.Add("- 판매가격: " + priceList[0].Replace(" - 1개: ", "").Replace(" - ", ""));
+                            break;
+                        */
+                        default:
+                            tags.Add("#$S판매가격#");
+                            tags.AddRange(priceList);
+                            break;
+                    }
                 }
             }
 

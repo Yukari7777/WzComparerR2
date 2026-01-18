@@ -31,6 +31,8 @@
             this.superTabControl1 = new DevComponents.DotNetBar.SuperTabControl();
             this.superTabControlPanel1 = new DevComponents.DotNetBar.SuperTabControlPanel();
             this.chkEnable22AniStyle = new DevComponents.DotNetBar.Controls.CheckBoxX();
+            this.chkShowNpcQuotes = new DevComponents.DotNetBar.Controls.CheckBoxX();
+            this.chkEnableWorldArchive = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.chkShowAllIllustAtOnce = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.chkShowMiniMap = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.chkShowMiniMapMob = new DevComponents.DotNetBar.Controls.CheckBoxX();
@@ -108,6 +110,9 @@
             this.chkShowReqSkill = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.labelX4 = new DevComponents.DotNetBar.LabelX();
             this.cmbPreferredStringCopyMethod = new DevComponents.DotNetBar.Controls.ComboBoxEx();
+            this.chkShowItemPurchasePrice = new DevComponents.DotNetBar.Controls.CheckBoxX();
+            this.chkShowGearPurchasePrice = new DevComponents.DotNetBar.Controls.CheckBoxX();
+            this.chkShowSkillValuesByJob = new DevComponents.DotNetBar.Controls.CheckBoxX();
             ((System.ComponentModel.ISupportInitialize)(this.superTabControl1)).BeginInit();
             this.superTabControl1.SuspendLayout();
             this.superTabControlPanel1.SuspendLayout();
@@ -184,6 +189,7 @@
             this.superTabControlPanel1.Controls.Add(this.comboBoxEx1);
             this.superTabControlPanel1.Controls.Add(this.checkBoxX2);
             this.superTabControlPanel1.Controls.Add(this.checkBoxX1);
+            this.superTabControlPanel1.Controls.Add(this.chkShowSkillValuesByJob);
             this.superTabControlPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.superTabControlPanel1.Location = new System.Drawing.Point(62, 0);
             this.superTabControlPanel1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
@@ -223,6 +229,22 @@
             this.checkBoxX15.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
             this.checkBoxX15.TabIndex = 8;
             this.checkBoxX15.Text = "계산 오류 무시";
+            // 
+            // chkShowSkillValuesByJob
+            // 
+            this.chkShowSkillValuesByJob.AutoSize = true;
+            this.chkShowSkillValuesByJob.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkShowSkillValuesByJob.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkShowSkillValuesByJob.Location = new System.Drawing.Point(15, 201);
+            this.chkShowSkillValuesByJob.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            this.chkShowSkillValuesByJob.Name = "chkShowSkillValuesByJob";
+            this.chkShowSkillValuesByJob.Size = new System.Drawing.Size(109, 18);
+            this.chkShowSkillValuesByJob.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkShowSkillValuesByJob.TabIndex = 9;
+            this.chkShowSkillValuesByJob.Text = "직업별 스킬 수치 표시";
             // 
             // checkBoxX14
             // 
@@ -281,7 +303,7 @@
             // 
             this.labelX3.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
             this.labelX3.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.labelX3.Location = new System.Drawing.Point(15, 259);
+            this.labelX3.Location = new System.Drawing.Point(15, 265);
             this.labelX3.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.labelX3.Name = "labelX3";
             this.labelX3.Size = new System.Drawing.Size(236, 30);
@@ -303,12 +325,12 @@
             this.comboItem8,
             this.comboItem9,
             this.comboItem10});
-            this.comboBoxEx2.Location = new System.Drawing.Point(110, 226);
+            this.comboBoxEx2.Location = new System.Drawing.Point(110, 245);
             this.comboBoxEx2.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.comboBoxEx2.Name = "comboBoxEx2";
             this.comboBoxEx2.Size = new System.Drawing.Size(104, 21);
             this.comboBoxEx2.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
-            this.comboBoxEx2.TabIndex = 10;
+            this.comboBoxEx2.TabIndex = 11;
             // 
             // comboItem5
             // 
@@ -342,7 +364,7 @@
             // 
             // 
             this.labelX2.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.labelX2.Location = new System.Drawing.Point(15, 230);
+            this.labelX2.Location = new System.Drawing.Point(15, 249);
             this.labelX2.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.labelX2.Name = "labelX2";
             this.labelX2.Size = new System.Drawing.Size(89, 18);
@@ -357,7 +379,7 @@
             // 
             // 
             this.labelX1.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.labelX1.Location = new System.Drawing.Point(15, 205);
+            this.labelX1.Location = new System.Drawing.Point(15, 225);
             this.labelX1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.labelX1.Name = "labelX1";
             this.labelX1.Size = new System.Drawing.Size(89, 18);
@@ -377,12 +399,12 @@
             this.comboItem2,
             this.comboItem3,
             this.comboItem4});
-            this.comboBoxEx1.Location = new System.Drawing.Point(110, 202);
+            this.comboBoxEx1.Location = new System.Drawing.Point(110, 221);
             this.comboBoxEx1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.comboBoxEx1.Name = "comboBoxEx1";
             this.comboBoxEx1.Size = new System.Drawing.Size(104, 21);
             this.comboBoxEx1.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
-            this.comboBoxEx1.TabIndex = 8;
+            this.comboBoxEx1.TabIndex = 10;
             // 
             // comboItem1
             // 
@@ -459,6 +481,7 @@
             // 
             // superTabControlPanel2
             // 
+            this.superTabControlPanel2.Controls.Add(this.chkShowGearPurchasePrice);
             //this.superTabControlPanel2.Controls.Add(this.checkBoxX11);
             this.superTabControlPanel2.Controls.Add(this.checkBoxX18);
             this.superTabControlPanel2.Controls.Add(this.checkBoxX17);
@@ -473,6 +496,21 @@
             this.superTabControlPanel2.TabIndex = 0;
             this.superTabControlPanel2.TabItem = this.superTabItem2;
             this.superTabControlPanel2.Visible = false;
+            // 
+            // chkShowGearPurchasePrice
+            // 
+            this.chkShowGearPurchasePrice.AutoSize = true;
+            this.chkShowGearPurchasePrice.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkShowGearPurchasePrice.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkShowGearPurchasePrice.Location = new System.Drawing.Point(15, 132);
+            this.chkShowGearPurchasePrice.Name = "chkShowGearPurchasePrice";
+            this.chkShowGearPurchasePrice.Size = new System.Drawing.Size(126, 16);
+            this.chkShowGearPurchasePrice.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkShowGearPurchasePrice.TabIndex = 5;
+            this.chkShowGearPurchasePrice.Text = "캐시샵 판매 가격 표시";
             // 
             // checkBoxX11
             // 
@@ -579,6 +617,7 @@
             // 
             // superTabControlPanel3
             // 
+            this.superTabControlPanel3.Controls.Add(this.chkShowItemPurchasePrice);
             this.superTabControlPanel3.Controls.Add(this.checkBoxX12);
             this.superTabControlPanel3.Controls.Add(this.checkBoxX9);
             this.superTabControlPanel3.Controls.Add(this.checkBoxX8);
@@ -595,6 +634,21 @@
             this.superTabControlPanel3.TabIndex = 0;
             this.superTabControlPanel3.TabItem = this.superTabItem3;
             this.superTabControlPanel3.Visible = false;
+            // 
+            // chkShowItemPurchasePrice
+            // 
+            this.chkShowItemPurchasePrice.AutoSize = true;
+            this.chkShowItemPurchasePrice.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkShowItemPurchasePrice.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkShowItemPurchasePrice.Location = new System.Drawing.Point(15, 108);
+            this.chkShowItemPurchasePrice.Name = "chkShowItemPurchasePrice";
+            this.chkShowItemPurchasePrice.Size = new System.Drawing.Size(126, 16);
+            this.chkShowItemPurchasePrice.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkShowItemPurchasePrice.TabIndex = 5;
+            this.chkShowItemPurchasePrice.Text = "캐시샵 판매 가격 표시";
             // 
             // checkBoxX12
             // 
@@ -620,7 +674,7 @@
             // 
             // 
             this.labelCosmeticHairColor.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.labelCosmeticHairColor.Location = new System.Drawing.Point(15, 108);
+            this.labelCosmeticHairColor.Location = new System.Drawing.Point(15, 132);
             this.labelCosmeticHairColor.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.labelCosmeticHairColor.Name = "labelCosmeticHairColor";
             this.labelCosmeticHairColor.Size = new System.Drawing.Size(89, 18);
@@ -635,7 +689,7 @@
             // 
             // 
             this.labelCosmeticFaceColor.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.labelCosmeticFaceColor.Location = new System.Drawing.Point(15, 132);
+            this.labelCosmeticFaceColor.Location = new System.Drawing.Point(15, 156);
             this.labelCosmeticFaceColor.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.labelCosmeticFaceColor.Name = "labelCosmeticFaceColor";
             this.labelCosmeticFaceColor.Size = new System.Drawing.Size(89, 18);
@@ -650,7 +704,7 @@
             this.comboBoxEx3.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.comboBoxEx3.FormattingEnabled = true;
             this.comboBoxEx3.ItemHeight = 15;
-            this.comboBoxEx3.Location = new System.Drawing.Point(140, 106);
+            this.comboBoxEx3.Location = new System.Drawing.Point(140, 130);
             this.comboBoxEx3.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.comboBoxEx3.Name = "comboBoxEx3";
             this.comboBoxEx3.Size = new System.Drawing.Size(104, 21);
@@ -665,7 +719,7 @@
             this.comboBoxEx4.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.comboBoxEx4.FormattingEnabled = true;
             this.comboBoxEx4.ItemHeight = 15;
-            this.comboBoxEx4.Location = new System.Drawing.Point(140, 130);
+            this.comboBoxEx4.Location = new System.Drawing.Point(140, 154);
             this.comboBoxEx4.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.comboBoxEx4.Name = "comboBoxEx4";
             this.comboBoxEx4.Size = new System.Drawing.Size(104, 21);
@@ -1102,6 +1156,8 @@
             // 
             this.superTabControlPanel5.Controls.Add(this.chkShowAllIllustAtOnce);
             this.superTabControlPanel5.Controls.Add(this.chkEnable22AniStyle);
+            this.superTabControlPanel5.Controls.Add(this.chkShowNpcQuotes);
+            this.superTabControlPanel5.Controls.Add(this.chkEnableWorldArchive);
             this.superTabControlPanel5.Controls.Add(this.labelX4);
             this.superTabControlPanel5.Controls.Add(this.cmbPreferredStringCopyMethod);
             this.superTabControlPanel5.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -1143,7 +1199,7 @@
             // 
             // 
             this.chkShowAllIllustAtOnce.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.chkShowAllIllustAtOnce.Location = new System.Drawing.Point(13, 36);
+            this.chkShowAllIllustAtOnce.Location = new System.Drawing.Point(15, 36);
             this.chkShowAllIllustAtOnce.Name = "chkShowAllIllustAtOnce";
             this.chkShowAllIllustAtOnce.Size = new System.Drawing.Size(145, 16);
             this.chkShowAllIllustAtOnce.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
@@ -1158,7 +1214,7 @@
             // 
             // 
             this.labelX4.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
-            this.labelX4.Location = new System.Drawing.Point(13, 60);
+            this.labelX4.Location = new System.Drawing.Point(15, 60);
             this.labelX4.Name = "labelX4";
             this.labelX4.Size = new System.Drawing.Size(87, 16);
             this.labelX4.TabIndex = 7;
@@ -1177,6 +1233,37 @@
             this.cmbPreferredStringCopyMethod.Size = new System.Drawing.Size(120, 19);
             this.cmbPreferredStringCopyMethod.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
             this.cmbPreferredStringCopyMethod.TabIndex = 7;
+            // 
+            // chkEnableWorldArchive
+            // 
+            this.chkEnableWorldArchive.AutoSize = true;
+            this.chkEnableWorldArchive.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkEnableWorldArchive.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkEnableWorldArchive.Location = new System.Drawing.Point(15, 84);
+            this.chkEnableWorldArchive.Name = "chkEnableWorldArchive";
+            this.chkEnableWorldArchive.Size = new System.Drawing.Size(145, 16);
+            this.chkEnableWorldArchive.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkEnableWorldArchive.TabIndex = 8;
+            this.chkEnableWorldArchive.Text = "월드 아카이브 활성화";
+            this.chkEnableWorldArchive.CheckedChanged += chkEnableWorldArchive_CheckedChanged;
+            // 
+            // chkShowNpcQuotes
+            // 
+            this.chkShowNpcQuotes.AutoSize = true;
+            this.chkShowNpcQuotes.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkShowNpcQuotes.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkShowNpcQuotes.Location = new System.Drawing.Point(30, 108);
+            this.chkShowNpcQuotes.Name = "chkShowNpcQuotes";
+            this.chkShowNpcQuotes.Size = new System.Drawing.Size(145, 16);
+            this.chkShowNpcQuotes.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkShowNpcQuotes.TabIndex = 9;
+            this.chkShowNpcQuotes.Text = "NPC 대사 보기";
             // 
             // buttonX2
             // 
@@ -1294,13 +1381,15 @@
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX12;
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX13;
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX14;
-        private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX15;
+        private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX15; 
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX16;
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX17;
         private DevComponents.DotNetBar.Controls.CheckBoxX checkBoxX18;
         private DevComponents.DotNetBar.LabelX labelCosmeticHairColor;
         private DevComponents.DotNetBar.LabelX labelCosmeticFaceColor;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkEnable22AniStyle;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkShowNpcQuotes;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkEnableWorldArchive;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkShowAllIllustAtOnce;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkShowDamageSkinID;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkShowDamageSkin;
@@ -1323,5 +1412,8 @@
         private DevComponents.DotNetBar.Controls.CheckBoxX chkShowReqSkill;
         private DevComponents.DotNetBar.LabelX labelX4;
         private DevComponents.DotNetBar.Controls.ComboBoxEx cmbPreferredStringCopyMethod;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkShowItemPurchasePrice;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkShowGearPurchasePrice;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkShowSkillValuesByJob;
     }
 }

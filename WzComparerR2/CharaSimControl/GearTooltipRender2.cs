@@ -55,7 +55,9 @@ namespace WzComparerR2.CharaSimControl
         public bool MaxStar25 { get; set; } = false;
         public bool ShowCosmetic { get; set; }
         public bool IsCombineProperties { get; set; } = true;
+        public bool ShowCashPurchasePrice { get; set; }
         public bool CompareMode { get; set; } = false;
+        public int LoadedCommoditiesSlot { get; set; } = 0;
         private bool isMsnClient { get; set; }
 
         public TooltipRender SetItemRender { get; set; }
@@ -199,6 +201,10 @@ namespace WzComparerR2.CharaSimControl
             {
                 { "$y", GearGraphics.gearCyanColor },
                 { "$e", GearGraphics.ScrollEnhancementColor },
+            };
+            var itemPriceColorTable = new Dictionary<string, Color>()
+            {
+                { "$S", ((SolidBrush)GearGraphics.ItemPriceBrush).Color },
             };
             int value, value2; ;
 
@@ -784,7 +790,7 @@ namespace WzComparerR2.CharaSimControl
             }
 
             //星星锤子
-            if (hasTuc && Gear.Hammer > -1 && Gear.GetMaxStar() > 0 && !Gear.GetBooleanValue(GearPropType.blockUpgradeStarforce))
+            if (hasTuc && Gear.Hammer > -1 && Gear.GetMaxStar(CharaSimLoader.LoadedAstraSubWeapons) > 0 && !Gear.GetBooleanValue(GearPropType.blockUpgradeStarforce))
             {
                 if (Gear.Hammer >= 1)
                 {
@@ -1179,6 +1185,11 @@ namespace WzComparerR2.CharaSimControl
                     cosmeticSample.Bitmap.Dispose();
                 }
 
+                // 어센틱심볼 추가효과 설명
+                if (!string.IsNullOrEmpty(Gear.SpecificTargetDesc))
+                {
+                    GearGraphics.DrawString(g, Gear.SpecificTargetDesc.Trim(), GearGraphics.EquipDetailFont2, orange2FontColorTable, 10, 243, ref picH, 15);
+                }
                 if (!string.IsNullOrEmpty(sr.Desc))
                 {
                     GearGraphics.DrawString(g, sr.Desc.Replace("#", " #"), GearGraphics.EquipDetailFont2, orange2FontColorTable, 10, 243, ref picH, 15);
@@ -1248,6 +1259,21 @@ namespace WzComparerR2.CharaSimControl
                     GearGraphics.DrawString(g, exclusiveEquip, GearGraphics.EquipDetailFont2, orange2FontColorTable, 13, 244, ref picH, 15);
                     picH += 5;
                     break;
+                }
+            }
+
+            if (Gear.Cash && ShowCashPurchasePrice)
+            {
+                if (CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot].ContainsKey(Gear.ItemID))
+                {
+                    var priceInfo = CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot][Gear.ItemID].FirstOrDefault();
+                    int price = priceInfo.Price;
+                    string currency = priceInfo.Meso ? "메소" : "캐시";
+                    if (price > 0)
+                    {
+                        picH += 16;
+                        GearGraphics.DrawString(g, "#$S- 판매가격: " + ItemStringHelper.ToCJKNumberExpr(price) + currency + "#", GearGraphics.EquipDetailFont, itemPriceColorTable, 13, 244, ref picH, 16);
+                    }
                 }
             }
 
@@ -1730,7 +1756,7 @@ namespace WzComparerR2.CharaSimControl
         private void DrawJobReq(Graphics g, ref int picH)
         {
             int value;
-            string extraReq = ItemStringHelper.GetExtraJobReqString(Gear.type);
+            string extraReq = ItemStringHelper.GetExtraJobReqString(Gear.type, Gear.ReqSpecJobs.Count > 0, CharaSimLoader.LoadedAstraSubWeapons, Gear.ItemID);
             if (extraReq == null && Gear.Props.TryGetValue(GearPropType.reqSpecJob, out value))
             {
                 extraReq = ItemStringHelper.GetExtraJobReqString(value);
@@ -1837,7 +1863,7 @@ namespace WzComparerR2.CharaSimControl
 
         private void DrawStar2(Graphics g, ref int picH)
         {
-            int maxStar = Math.Max(Gear.GetMaxStar(), Gear.Star);
+            int maxStar = Math.Max(Gear.GetMaxStar(CharaSimLoader.LoadedAstraSubWeapons), Gear.Star);
             if (maxStar > 0)
             {
                 if (maxStar == 30 && this.MaxStar25)

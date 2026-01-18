@@ -257,6 +257,7 @@ namespace WzComparerR2
             tooltipQuickView.SkillRender.DisplayCooltimeMSAsSec = Setting.Skill.DisplayCooltimeMSAsSec;
             tooltipQuickView.SkillRender.DisplayPermyriadAsPercent = Setting.Skill.DisplayPermyriadAsPercent;
             tooltipQuickView.SkillRender.IgnoreEvalError = Setting.Skill.IgnoreEvalError;
+            tooltipQuickView.SkillRender.ShowSkillValuesByJob = Setting.Skill.ShowSkillValuesByJob;
 
             this.skillDefaultLevel = Setting.Skill.DefaultLevel;
             this.skillInterval = Setting.Skill.IntervalLevel;
@@ -266,12 +267,13 @@ namespace WzComparerR2
             tooltipQuickView.GearRender.ShowLevelOrSealed = Setting.Gear.ShowLevelOrSealed;
             tooltipQuickView.GearRender.MaxStar25 = Setting.Gear.MaxStar25;
             tooltipQuickView.GearRender.ShowCosmetic = Setting.Gear.ShowCosmetic;
+            tooltipQuickView.GearRender.ShowCashPurchasePrice = Setting.Gear.ShowPurchasePrice;
             tooltipQuickView.GearRender22.ShowObjectID = Setting.Gear.ShowID;
             tooltipQuickView.GearRender22.ShowSpeed = Setting.Gear.ShowWeaponSpeed;
             tooltipQuickView.GearRender22.ShowLevelOrSealed = Setting.Gear.ShowLevelOrSealed;
             tooltipQuickView.GearRender22.MaxStar25 = Setting.Gear.MaxStar25;
             tooltipQuickView.GearRender22.ShowCosmetic = Setting.Gear.ShowCosmetic;
-
+            tooltipQuickView.GearRender22.ShowCashPurchasePrice = Setting.Gear.ShowPurchasePrice;
             tooltipQuickView.ItemRender.ShowObjectID = Setting.Item.ShowID;
             tooltipQuickView.ItemRender.LinkRecipeInfo = Setting.Item.LinkRecipeInfo;
             tooltipQuickView.ItemRender.LinkRecipeItem = Setting.Item.LinkRecipeItem;
@@ -284,6 +286,7 @@ namespace WzComparerR2
             tooltipQuickView.ItemRender.AlwaysUseMseaFormatDamageSkin = Setting.DamageSkin.AlwaysUseMseaFormat;
             tooltipQuickView.ItemRender.DisplayUnitOnSingleLine = Setting.DamageSkin.DisplayUnitOnSingleLine;
             tooltipQuickView.ItemRender.DamageSkinNumber = Setting.DamageSkin.DamageSkinNumber;
+            tooltipQuickView.ItemRender.ShowCashPurchasePrice = Setting.Item.ShowPurchasePrice;
             tooltipQuickView.ItemRender22.ShowObjectID = Setting.Item.ShowID;
             tooltipQuickView.ItemRender22.LinkRecipeInfo = Setting.Item.LinkRecipeInfo;
             tooltipQuickView.ItemRender22.LinkRecipeItem = Setting.Item.LinkRecipeItem;
@@ -296,12 +299,15 @@ namespace WzComparerR2
             tooltipQuickView.ItemRender22.AlwaysUseMseaFormatDamageSkin = Setting.DamageSkin.AlwaysUseMseaFormat;
             tooltipQuickView.ItemRender22.DisplayUnitOnSingleLine = Setting.DamageSkin.DisplayUnitOnSingleLine;
             tooltipQuickView.ItemRender22.DamageSkinNumber = Setting.DamageSkin.DamageSkinNumber;
-
+            tooltipQuickView.ItemRender22.ShowCashPurchasePrice = Setting.Item.ShowPurchasePrice;
             tooltipQuickView.MapRender.ShowMiniMap = Setting.Map.ShowMiniMap;
             tooltipQuickView.MapRender.ShowMiniMapMob = Setting.Map.ShowMiniMapMob;
             tooltipQuickView.MapRender.ShowMiniMapNpc = Setting.Map.ShowMiniMapNpc;
             tooltipQuickView.MapRender.ShowMiniMapPortal = Setting.Map.ShowMiniMapPortal;
+            tooltipQuickView.MobRender.EnableWorldArchive = Setting.Misc.EnableWorldArchive;
             tooltipQuickView.NpcRender.ShowAllIllustAtOnce = Setting.Npc.ShowAllIllustAtOnce;
+            tooltipQuickView.NpcRender.ShowNpcQuotes = Setting.Npc.ShowNpcQuotes;
+            tooltipQuickView.NpcRender.EnableWorldArchive = Setting.Misc.EnableWorldArchive;
             tooltipQuickView.QuestRender.ShowObjectID = Setting.Quest.ShowID;
             tooltipQuickView.QuestRender.DefaultState = Setting.Quest.DefaultState;
             tooltipQuickView.QuestRender.ShowAllStates = Setting.Quest.ShowAllStates;
@@ -659,6 +665,10 @@ namespace WzComparerR2
 
             Wz_Node node = advTree3.SelectedNode.AsWzNode();
             string aniName = GetSelectedNodeImageName();
+            if (this.pictureBoxEx1.IsPaused)
+            {
+                ResumePictureBox();
+            }
 
             //添加到动画控件
             var spineDetectResult = SpineLoader.Detect(node);
@@ -733,6 +743,10 @@ namespace WzComparerR2
 
             Wz_Node node = advTree3.SelectedNode.AsWzNode();
             string aniName = "중첩_" + GetSelectedNodeImageName();
+            if (this.pictureBoxEx1.IsPaused)
+            {
+                ResumePictureBox();
+            }
 
             if (node.Value is Wz_Png)
             {
@@ -1046,6 +1060,80 @@ namespace WzComparerR2
             }
         }
 
+        private void buttonItemPBPlay_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0)
+            {
+                return;
+            }
+            if (this.pictureBoxEx1.IsPlaying)
+            {
+                PausePictureBox();
+            }
+            else
+            {
+                ResumePictureBox();
+            }
+        }
+
+        private void PausePictureBox()
+        {
+            this.pictureBoxEx1.DoPause();
+            this.buttonItemPBPlay.Image = global::WzComparerR2.Properties.Resources.Play;
+            this.buttonItemPBPlay.Tooltip = "재생";
+            this.buttonItemPBGA1.Enabled = true;
+            this.buttonItemPBGA2.Enabled = true;
+            this.buttonItemPBGB1.Enabled = true;
+            this.buttonItemPBGB2.Enabled = true;
+        }
+
+        private void ResumePictureBox()
+        {
+            this.pictureBoxEx1.DoResume();
+            this.buttonItemPBPlay.Image = global::WzComparerR2.Properties.Resources.Pause;
+            this.buttonItemPBPlay.Tooltip = "일시정지";
+            this.buttonItemPBGA1.Enabled = false;
+            this.buttonItemPBGA2.Enabled = false;
+            this.buttonItemPBGB1.Enabled = false;
+            this.buttonItemPBGB2.Enabled = false;
+        }
+
+        private void buttonItemPBGA1_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0)
+            {
+                return;
+            }
+            this.pictureBoxEx1.DoTimeUpdate(30);
+        }
+
+        private void buttonItemPBGA2_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0)
+            {
+                return;
+            }
+            this.pictureBoxEx1.DoTimeUpdate(360);
+        }
+
+        private void buttonItemPBGB1_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0)
+            {
+                return;
+            }
+            this.pictureBoxEx1.DoTimeUpdate(-30);
+        }
+
+        private void buttonItemPBGB2_Click(object sender, EventArgs e)
+        {
+            if (this.pictureBoxEx1.Items.Count <= 0)
+            {
+                return;
+            }
+            this.pictureBoxEx1.DoTimeUpdate(-360);
+        }
+
         private void OnSaveImage(bool options)
         {
             if (this.pictureBoxEx1.Items.Count <= 0)
@@ -1201,12 +1289,12 @@ namespace WzComparerR2
                 dlg.Filter = "MapleStory Data File(Base.wz, *.wz, *.ms, *.mn)|*.wz;*.ms;*.mn";
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
-                    openWz(dlg.FileName);
+                    Task.Run(() => openWz(dlg.FileName));
                 }
             }
         }
 
-        private void openWz(string wzFilePath)
+        private async void openWz(string wzFilePath)
         {
             foreach (Wz_Structure wzs in openedWz)
             {
@@ -1214,7 +1302,7 @@ namespace WzComparerR2
                 {
                     if (string.Compare(wz_f.Header.FileName, wzFilePath, true) == 0)
                     {
-                        MessageBoxEx.Show("이미 열려있는 wz 파일입니다.", "오류");
+                        MessageBoxEx.Show(this, "이미 열려있는 wz 파일입니다.", "오류");
                         return;
                     }
                 }
@@ -1222,9 +1310,17 @@ namespace WzComparerR2
 
             Wz_Structure wz = new Wz_Structure();
             QueryPerformance.Start();
+            labelItemStatus.Text = $"로드 중: {wzFilePath}";
             advTree1.BeginUpdate();
             try
             {
+                btnItemOpenWz.Enabled = false;
+                btnItemOpenImg.Enabled = false;
+                buttonItemClose.Enabled = false;
+                buttonItemCloseAll.Enabled = false;
+                buttonItemSearchWz.Enabled = false;
+                buttonItemSearchString.Enabled = false;
+                galleryContainerRecent.Enabled = false;
                 string[] msFileExtensions = { ".ms", ".mn" };
                 if (msFileExtensions.Any(ext => string.Equals(Path.GetExtension(wzFilePath), ext, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -1262,8 +1358,12 @@ namespace WzComparerR2
                 advTree1.Nodes.Add(node);
                 this.openedWz.Add(wz);
                 OnWzOpened(new WzStructureEventArgs(wz)); //触发事件
+                if (!this.stringLinker.HasValues)
+                {
+                    this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                }
                 QueryPerformance.End();
-                labelItemStatus.Text = "Wz 열기 완료: 소요 시간 " + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms, " + wz.img_number + "개의 img";
+                labelItemStatus.Text = (this.stringLinker.HasValues ? "Wz 열기 완료: 소요 시간 " : "Wz 열기 완료, StringLinker가 초기화되지 않았습니다. 소요 시간 ") + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms, " + wz.img_number + " IMG";
 
                 ConfigManager.Reload();
                 WcR2Config.Default.RecentDocuments.Remove(wzFilePath);
@@ -1282,6 +1382,13 @@ namespace WzComparerR2
             }
             finally
             {
+                btnItemOpenWz.Enabled = true;
+                btnItemOpenImg.Enabled = true;
+                buttonItemClose.Enabled = true;
+                buttonItemCloseAll.Enabled = true;
+                buttonItemSearchWz.Enabled = true;
+                buttonItemSearchString.Enabled = true;
+                galleryContainerRecent.Enabled = true;
                 advTree1.EndUpdate();
                 UpdateClbRootNode();
             }
@@ -1295,12 +1402,12 @@ namespace WzComparerR2
                 dlg.Filter = "*.img|*.img|*.wz|*.wz";
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
-                    openImg(dlg.FileName);
+                    Task.Run(() => openImg(dlg.FileName));
                 }
             }
         }
 
-        private void openImg(string imgFileName)
+        private async void openImg(string imgFileName)
         {
             foreach (Wz_Structure wzs in openedWz)
             {
@@ -1316,9 +1423,17 @@ namespace WzComparerR2
 
             Wz_Structure wz = new Wz_Structure();
             var sw = Stopwatch.StartNew();
+            labelItemStatus.Text = $"로드 중: {imgFileName}";
             advTree1.BeginUpdate();
             try
             {
+                btnItemOpenWz.Enabled = false;
+                btnItemOpenImg.Enabled = false;
+                buttonItemClose.Enabled = false;
+                buttonItemCloseAll.Enabled = false;
+                buttonItemSearchWz.Enabled = false;
+                buttonItemSearchString.Enabled = false;
+                galleryContainerRecent.Enabled = false;
                 wz.LoadImg(imgFileName);
 
                 Node node = createNode(wz.WzNode);
@@ -1341,6 +1456,13 @@ namespace WzComparerR2
             }
             finally
             {
+                btnItemOpenWz.Enabled = true;
+                btnItemOpenImg.Enabled = true;
+                buttonItemClose.Enabled = true;
+                buttonItemCloseAll.Enabled = true;
+                buttonItemSearchWz.Enabled = true;
+                buttonItemSearchString.Enabled = true;
+                galleryContainerRecent.Enabled = true;
                 advTree1.EndUpdate();
             }
         }
@@ -1445,7 +1567,7 @@ namespace WzComparerR2
             string path;
             if (btnItem == null || (path = btnItem.Tag as string) == null)
                 return;
-            openWz(path);
+            Task.Run(() => openWz(path));
         }
         #endregion
 
@@ -1479,7 +1601,7 @@ namespace WzComparerR2
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 foreach (string file in files)
                 {
-                    openWz(file);
+                    Task.Run(() => openWz(file));
                 }
             }
         }
@@ -1705,6 +1827,10 @@ namespace WzComparerR2
                     pictureBoxEx1.PictureName = GetSelectedNodeImageName();
                     pictureBoxEx1.ShowImage(png);
                     this.cmbItemAniNames.Items.Clear();
+                    if (this.pictureBoxEx1.IsPaused)
+                    {
+                        ResumePictureBox();
+                    }
                     if (png.ActualPages > 1)
                     {
                         for (int i = 0; i < png.ActualPages; i++)
@@ -1793,6 +1919,10 @@ namespace WzComparerR2
                     pictureBoxEx1.PictureName = GetSelectedNodeImageName();
                     this.pictureBoxEx1.ShowAnimation(videoFrameData);
                     this.cmbItemAniNames.Items.Clear();
+                    if (this.pictureBoxEx1.IsPaused)
+                    {
+                        ResumePictureBox();
+                    }
                     break;
 
                 default:
@@ -2970,6 +3100,7 @@ namespace WzComparerR2
         {
             if (e.KeyCode == Keys.Enter)
             {
+                if (!buttonItemSearchWz.Enabled) return;
                 buttonItemSearchWz_Click(buttonItemSearchWz, EventArgs.Empty);
             }
         }
@@ -3182,6 +3313,7 @@ namespace WzComparerR2
         {
             if (e.KeyCode == Keys.Enter)
             {
+                if (!buttonItemSearchString.Enabled) return;
                 buttonItemSearchString_Click(buttonItemSearchString, EventArgs.Empty);
             }
         }
@@ -3763,6 +3895,7 @@ namespace WzComparerR2
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
                     CharaSimLoader.LoadSetItemsIfEmpty();
+                    CharaSimLoader.LoadAstraSubWeaponsIfEmpty();
                     CharaSimLoader.LoadExclusiveEquipsIfEmpty();
                     CharaSimLoader.LoadCommoditiesIfEmpty();
                     if (selectedNode.FullPathToFile.Contains("Familiar"))
@@ -3878,6 +4011,8 @@ namespace WzComparerR2
                 string altAutoDesc = null;
                 StringResult sr = new StringResult();
                 Dictionary<int, StringResult> sr_dict = null;
+                StringResult waSr = new StringResult();
+                StringBuilder npcQuoteSb = new StringBuilder();
 
                 // dispose bitmaps no longer in use
                 if (tooltipQuickView.TargetItem != null)
@@ -3945,12 +4080,45 @@ namespace WzComparerR2
                         break;
 
                     case Mob mob:
+                        if (CharaSimConfig.Default.Misc.EnableWorldArchive)
+                        {
+                            if (stringLinker == null || !stringLinker.StringWorldArchiveMob.TryGetValue(mob.ID, out waSr))
+                            {
+                                waSr = new StringResult();
+                            }
+                        }
+
                         sr_dict = stringLinker.StringMob;
                         node_id = mob.ID;
                         fileName = node_id + ".png";
                         break;
 
                     case Npc npc:
+                        if (CharaSimConfig.Default.Misc.EnableWorldArchive)
+                        {
+                            if (stringLinker == null || !stringLinker.StringWorldArchiveNpc.TryGetValue(npc.ID, out waSr))
+                            {
+                                waSr = new StringResult();
+                            }
+                            if (CharaSimConfig.Default.Npc.ShowNpcQuotes)
+                            {
+                                NpcQuote quote = NpcQuote.CreateFromNode(PluginManager.FindWz($@"String\Npc.img\{npc.ID}"), PluginManager.FindWz, stringLinker);
+                                if (quote != null)
+                                {
+                                    foreach (var kvp in quote.NQuote)
+                                        npcQuoteSb.AppendLine($"n{kvp.Key}: {kvp.Value}");
+                                    foreach (var kvp in quote.FQuote)
+                                        npcQuoteSb.AppendLine($"f{kvp.Key}: {kvp.Value}");
+                                    foreach (var kvp in quote.WQuote)
+                                        npcQuoteSb.AppendLine($"w{kvp.Key}: {kvp.Value}");
+                                    foreach (var kvp in quote.DQuote)
+                                        npcQuoteSb.AppendLine($"d{kvp.Key}: {kvp.Value}");
+                                    foreach (var kvp in quote.SpecialQuote)
+                                        npcQuoteSb.AppendLine($"s{kvp.Key}: {kvp.Value}");
+                                }
+                            }
+                        }
+
                         sr_dict = stringLinker.StringNpc;
                         node_id = npc.ID;
                         fileName = node_id + ".png";
@@ -4009,8 +4177,8 @@ namespace WzComparerR2
                 {
                     tooltipQuickView.NodeName = sr.Name;
                     tooltipQuickView.Desc = sr.Desc;
-                    tooltipQuickView.Pdesc = sr.Pdesc;
-                    tooltipQuickView.AutoDesc = altAutoDesc ?? sr.AutoDesc;
+                    tooltipQuickView.Pdesc = sr.Pdesc ?? waSr.Desc;
+                    tooltipQuickView.AutoDesc = altAutoDesc ?? sr.AutoDesc ?? npcQuoteSb.ToString();
                     tooltipQuickView.Hdesc = sr["h"];
                     tooltipQuickView.DescLeftAlign = sr["desc_leftalign"];
                 }
@@ -4038,6 +4206,7 @@ namespace WzComparerR2
         {
             int count = CharaSimLoader.LoadedSetItems.Count;
             CharaSimLoader.LoadedSetItems.Clear();
+            CharaSimLoader.LoadedAstraSubWeapons.Clear();
             labelItemStatus.Text = "세트 아이템 " + count + "개 정리 완료";
         }
 
@@ -4053,6 +4222,10 @@ namespace WzComparerR2
             int count = CharaSimLoader.LoadedCommoditiesBySN.Count;
             CharaSimLoader.LoadedCommoditiesBySN.Clear();
             CharaSimLoader.LoadedCommoditiesByItemId.Clear();
+            foreach (var dict in CharaSimLoader.LoadedCommodityPricesByItemId)
+            {
+                dict.Clear();
+            }
             labelItemStatus.Text = "캐시 아이템 " + count + "개 정리 완료";
         }
 
@@ -4606,7 +4779,7 @@ namespace WzComparerR2
 
                             // Initialize VCore Dictionary
                             Dictionary<int, List<int>> FifthJobSkillToJobID = new Dictionary<int, List<int>>();
-                            Wz_Node vCoreData = PluginManager.FindWz("Etc\\VcoreNew.img\\vSkill\\CoreData", PluginManager.FindWz(Wz_Type.Base).GetNodeWzFile()) ?? PluginManager.FindWz("Etc\\VCore.img\\CoreData", PluginManager.FindWz(Wz_Type.Base).GetNodeWzFile());
+                            Wz_Node vCoreData = PluginManager.FindWz("Etc\\VcoreNew.img\\vSkill\\CoreData") ?? PluginManager.FindWz("Etc\\VCore.img\\CoreData");
                             if (vCoreData != null)
                             {
                                 foreach (Wz_Node data in vCoreData.Nodes)
@@ -4642,6 +4815,7 @@ namespace WzComparerR2
                             tooltip.ShowDelay = Setting.Skill.ShowDelay;
                             tooltip.IgnoreEvalError = Setting.Skill.IgnoreEvalError;
                             tooltip.Enable22AniStyle = Setting.Misc.Enable22AniStyle;
+                            tooltip.ShowSkillValuesByJob = Setting.Skill.ShowSkillValuesByJob;
                             foreach (var i in selectedJob)
                             {
                                 var jobImg = PluginManager.FindWz($"Skill\\{i:D3}.img\\skill");

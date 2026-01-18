@@ -136,6 +136,13 @@ namespace WzComparerR2
         }
 
         [Link]
+        public bool Skill_ShowSkillValuesByJob
+        {
+            get { return chkShowSkillValuesByJob.Checked; }
+            set { chkShowSkillValuesByJob.Checked = value; }
+        }
+
+        [Link]
         public bool Gear_ShowID
         {
             get { return checkBoxX3.Checked; }
@@ -154,6 +161,13 @@ namespace WzComparerR2
         {
             get { return checkBoxX5.Checked; }
             set { checkBoxX5.Checked = value; }
+        }
+
+        [Link]
+        public bool Item_ShowPurchasePrice
+        {
+            get { return chkShowItemPurchasePrice.Checked; }
+            set { chkShowItemPurchasePrice.Checked = value; }
         }
 
         [Link]
@@ -224,6 +238,13 @@ namespace WzComparerR2
         {
             get { return checkBoxX18.Checked; }
             set { checkBoxX18.Checked = value; }
+        }
+        
+        [Link]
+        public bool Gear_ShowPurchasePrice
+        {
+            get { return chkShowGearPurchasePrice.Checked; }
+            set { chkShowGearPurchasePrice.Checked = value; }
         }
 
 
@@ -312,6 +333,13 @@ namespace WzComparerR2
         }
 
         [Link]
+        public bool Npc_ShowNpcQuotes
+        {
+            get { return chkShowNpcQuotes.Checked; }
+            set { chkShowNpcQuotes.Checked = value; }
+        }
+
+        [Link]
         public bool Quest_ShowAllStates
         {
             get { return chkQAS.Checked; }
@@ -340,6 +368,13 @@ namespace WzComparerR2
                 item.Value = value;
                 cmbPreferredStringCopyMethod.SelectedItem = item;
             }
+        }
+
+        [Link]
+        public bool Misc_EnableWorldArchive
+        {
+            get { return chkEnableWorldArchive.Checked; }
+            set { chkEnableWorldArchive.Checked = value; }
         }
 
         public void Load(CharaSimConfig config)
@@ -392,6 +427,11 @@ namespace WzComparerR2
             this.comboBoxExQuestState.Enabled = !this.chkQAS.Checked;
             this.labelXQS.Enabled = !this.chkQAS.Checked;
             this.labelXQSHint.Enabled = !this.chkQAS.Checked;
+        }
+
+        private void chkEnableWorldArchive_CheckedChanged(object sender, EventArgs e)
+        {
+            this.chkShowNpcQuotes.Enabled = chkEnableWorldArchive.Checked;
         }
 
         private void txtDamageSkinNumber_TextChanged(object sender, EventArgs e)

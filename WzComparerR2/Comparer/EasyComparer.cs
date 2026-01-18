@@ -144,6 +144,18 @@ namespace WzComparerR2.Comparer
                             WzNewOld[i]?.FindNodeByPath("Quest").GetNodeWzFile());
                     }
                 }
+                if (OutputItemTooltip || OutputGearTooltip) // Check commodity differences
+                {
+                    StateInfo = "캐시 아이템 정리중";
+                    CharaSimLoader.ClearAll();
+                    CharaSimLoader.LoadSetItemsIfEmpty(fileNew);
+                    CharaSimLoader.LoadAstraSubWeaponsIfEmpty(fileNew);
+                    CharaSimLoader.LoadExclusiveEquipsIfEmpty(fileNew);
+                    CharaSimLoader.LoadCommodities(fileOld, slotIdx: 1);
+                    CharaSimLoader.LoadCommodities(fileNew, slotIdx: 0);
+                    CompareCommodities();
+                    StateInfo = "캐시 아이템 정리 완료";
+                }
 
                 var dictNew = SplitVirtualNode(virtualNodeNew);
                 var dictOld = SplitVirtualNode(virtualNodeOld);
@@ -751,6 +763,7 @@ namespace WzComparerR2.Comparer
                 tooltipRenderNewOld[i].DiffSkillTags = this.DiffSkillTags;
                 tooltipRenderNewOld[i].IgnoreEvalError = true;
                 tooltipRenderNewOld[i].Enable22AniStyle = CharaSimConfig.Default.Misc.Enable22AniStyle;
+                tooltipRenderNewOld[i].ShowSkillValuesByJob = CharaSimConfig.Default.Skill.ShowSkillValuesByJob;
             }
 
             foreach (var skillID in OutputSkillTooltipIDs)
@@ -822,6 +835,8 @@ namespace WzComparerR2.Comparer
                     (tooltipRenderNewOld[i] as ItemTooltipRender22).AlwaysUseMseaFormatDamageSkin = CharaSimConfig.Default.DamageSkin.AlwaysUseMseaFormat;
                     (tooltipRenderNewOld[i] as ItemTooltipRender22).DisplayUnitOnSingleLine = CharaSimConfig.Default.DamageSkin.DisplayUnitOnSingleLine;
                     (tooltipRenderNewOld[i] as ItemTooltipRender22).DamageSkinNumber = CharaSimConfig.Default.DamageSkin.DamageSkinNumber;
+                    (tooltipRenderNewOld[i] as ItemTooltipRender22).ShowCashPurchasePrice = CharaSimConfig.Default.Item.ShowPurchasePrice;
+                    (tooltipRenderNewOld[i] as ItemTooltipRender22).LoadedCommoditiesSlot = i;
                 }
                 else
                 {
@@ -841,6 +856,8 @@ namespace WzComparerR2.Comparer
                     (tooltipRenderNewOld[i] as ItemTooltipRender2).AlwaysUseMseaFormatDamageSkin = CharaSimConfig.Default.DamageSkin.AlwaysUseMseaFormat;
                     (tooltipRenderNewOld[i] as ItemTooltipRender2).DisplayUnitOnSingleLine = CharaSimConfig.Default.DamageSkin.DisplayUnitOnSingleLine;
                     (tooltipRenderNewOld[i] as ItemTooltipRender2).DamageSkinNumber = CharaSimConfig.Default.DamageSkin.DamageSkinNumber;
+                    (tooltipRenderNewOld[i] as ItemTooltipRender2).ShowCashPurchasePrice = CharaSimConfig.Default.Item.ShowPurchasePrice;
+                    (tooltipRenderNewOld[i] as ItemTooltipRender2).LoadedCommoditiesSlot = i;
                 }
             }
 
@@ -904,6 +921,8 @@ namespace WzComparerR2.Comparer
                     (tooltipRenderNewOld[i] as GearTooltipRender22).CompareMode = true;
                     (tooltipRenderNewOld[i] as GearTooltipRender22).MaxStar25 = CharaSimConfig.Default.Gear.MaxStar25;
                     (tooltipRenderNewOld[i] as GearTooltipRender22).ShowCosmetic = CharaSimConfig.Default.Gear.ShowCosmetic;
+                    (tooltipRenderNewOld[i] as GearTooltipRender22).ShowCashPurchasePrice = CharaSimConfig.Default.Gear.ShowPurchasePrice;
+                    (tooltipRenderNewOld[i] as GearTooltipRender22).LoadedCommoditiesSlot = i;
                 }
                 else
                 {
@@ -915,6 +934,8 @@ namespace WzComparerR2.Comparer
                     (tooltipRenderNewOld[i] as GearTooltipRender2).CompareMode = true;
                     (tooltipRenderNewOld[i] as GearTooltipRender2).MaxStar25 = CharaSimConfig.Default.Gear.MaxStar25;
                     (tooltipRenderNewOld[i] as GearTooltipRender2).ShowCosmetic = CharaSimConfig.Default.Gear.ShowCosmetic;
+                    (tooltipRenderNewOld[i] as GearTooltipRender2).ShowCashPurchasePrice = CharaSimConfig.Default.Gear.ShowPurchasePrice;
+                    (tooltipRenderNewOld[i] as GearTooltipRender2).LoadedCommoditiesSlot = i;
                 }
                 CharaWzNodeNewOld[i] = PluginManager.FindWz(Wz_Type.Character, WzFileNewOld[i]);
             }
@@ -1051,6 +1072,7 @@ namespace WzComparerR2.Comparer
                 tooltipRenderNewOld[i].ShowObjectID = true;
                 tooltipRenderNewOld[i].SourceWzFile = WzFileNewOld[i];
                 tooltipRenderNewOld[i].DiffMobTags = this.DiffMobTags;
+                tooltipRenderNewOld[i].EnableWorldArchive = CharaSimConfig.Default.Misc.EnableWorldArchive;
             }
 
             foreach (var mobID in OutputMobTooltipIDs)
@@ -1099,8 +1121,10 @@ namespace WzComparerR2.Comparer
                 tooltipRenderNewOld[i] = new NpcTooltipRenderer();
                 tooltipRenderNewOld[i].StringLinker = this.StringLinkerNewOld[i];
                 tooltipRenderNewOld[i].ShowObjectID = true;
-                tooltipRenderNewOld[i].ShowAllIllustAtOnce = true;
+                tooltipRenderNewOld[i].ShowAllIllustAtOnce = CharaSimConfig.Default.Npc.ShowAllIllustAtOnce;
                 tooltipRenderNewOld[i].SourceWzFile = WzFileNewOld[i];
+                tooltipRenderNewOld[i].EnableWorldArchive = CharaSimConfig.Default.Misc.EnableWorldArchive;
+                tooltipRenderNewOld[i].ShowNpcQuotes = CharaSimConfig.Default.Npc.ShowNpcQuotes;
             }
 
             foreach (var npcID in OutputNpcTooltipIDs)
@@ -1357,6 +1381,15 @@ namespace WzComparerR2.Comparer
 
             Match match = Regex.Match(node.FullPathToFile, @"^String\\Skill.img\\(\d+).*"); // 스트링 확인
             string tag = null;
+
+            if (!match.Success)
+            {
+                match = Regex.Match(node.FullPathToFile, @"^Skill\d*\\\d+.img\\skill\\(\d+)\\common\\attackInfo\\(\d+)\\(.+)"); // attackInfo 확인
+                if (match.Success)
+                {
+                    tag = $"attackInfo/{match.Groups[2]}/{match.Groups[3]}";
+                }
+            }
 
             if (!match.Success)
             {
@@ -1647,6 +1680,65 @@ namespace WzComparerR2.Comparer
                 }
             }
         }
+
+        // 캐시 아이템 가격 변경 확인
+        private void CompareCommodities()
+        {
+            var commodities_new = CharaSimLoader.LoadedCommodityPricesByItemId[0];
+            var commodities_old = CharaSimLoader.LoadedCommodityPricesByItemId[1];
+
+            var key_new = commodities_new.Keys;
+            var key_old = commodities_old.Keys;
+
+            var added = key_new.Except(key_old).ToList();
+            var removed = key_old.Except(key_new).ToList();
+            List<int> ids = new List<int>();
+            ids.AddRange(added);
+            ids.AddRange(removed);
+
+            var common = key_new.Intersect(key_old);
+            foreach (var id in common)
+            {
+                if (commodities_new.TryGetValue(id, out var commodity_new) && commodities_old.TryGetValue(id, out var commodity_old) && CommodityPriceChanged(commodity_new, commodity_old))
+                {
+                    ids.Add(id);
+                }
+            }
+
+            foreach (var id in ids)
+            {
+                if (id >= 2000000 && OutputItemTooltip) // item
+                {
+                    if (!OutputItemTooltipIDs.Contains(id))
+                    {
+                        OutputItemTooltipIDs.Add(id);
+                    }
+                }
+                else if (OutputGearTooltip) // gear
+                {
+                    if (!OutputGearTooltipIDs.Contains(id))
+                    {
+                        OutputGearTooltipIDs.Add(id);
+                    }
+                }
+            }
+        }
+
+        private bool CommodityPriceChanged(IReadOnlyList<CommodityPriceInfo> commodity_new, IReadOnlyList<CommodityPriceInfo> commodity_old)
+        {
+            if (commodity_new.Count != commodity_old.Count)
+                return true;
+
+            for (int i = 0; i < commodity_new.Count; i++) // Sorted in CharaSimLoader
+            {
+                if (commodity_new[i] != commodity_old[i])
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private void CompareImg(Wz_Image imgNew, Wz_Image imgOld, string imgName, string anchorName, string menuAnchorName, string outputDir, StreamWriter sw)
         {
             StateDetail = "img 구조 분석중";
@@ -1894,17 +1986,24 @@ namespace WzComparerR2.Comparer
                                 Directory.CreateDirectory(outputDir);
                             }
                         }
-                        using (Bitmap bmp = png.ExtractPng())
+                        try
                         {
-                            try
+                            using (Bitmap bmp = png.ExtractPng())
                             {
-                                bmp.Save(Path.Combine(outputDir, fileName), System.Drawing.Imaging.ImageFormat.Png);
+                                try
+                                {
+                                    bmp.Save(Path.Combine(outputDir, fileName), System.Drawing.Imaging.ImageFormat.Png);
+                                }
+                                catch
+                                {
+                                    var fileName2 = ToHexString(MD5Hash(fileName)) + suffix;
+                                    bmp.Save(Path.Combine(outputDir, fileName2), System.Drawing.Imaging.ImageFormat.Png);
+                                }
                             }
-                            catch
-                            {
-                                fileName = ToHexString(MD5Hash(fileName)) + suffix;
-                                bmp.Save(Path.Combine(outputDir, fileName), System.Drawing.Imaging.ImageFormat.Png);
-                            }
+                        }
+                        catch
+                        {
+                            MessageBoxEx.Show($"이미지 파일 저장에 실패했습니다.\r\n확인 버튼을 누르면 비교가 계속됩니다.\r\n\r\n실패 대상: {fileName}", "오류");
                         }
                         return string.Format("<img src=\"{0}/{1}\" />", isCanvas ? Path.Combine(outputDirName, canvas) : outputDirName, WebUtility.UrlEncode(fileName));
                     }

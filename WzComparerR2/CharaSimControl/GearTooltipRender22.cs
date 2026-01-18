@@ -61,7 +61,9 @@ namespace WzComparerR2.CharaSimControl
         public bool MaxStar25 { get; set; } = false;
         public bool ShowCosmetic { get; set; }
         public bool IsCombineProperties { get; set; } = true;
+        public bool ShowCashPurchasePrice { get; set; }
         public bool CompareMode { get; set; } = false;
+        public int LoadedCommoditiesSlot { get; set; } = 0;
         private bool WillDrawMedal {  get; set; }
         private bool WillDrawChatBalloon { get; set; }
         private bool WillDrawNameTag { get; set; }
@@ -210,6 +212,7 @@ namespace WzComparerR2.CharaSimControl
                 { "$s", ((SolidBrush)GearGraphics.Equip22BrushScroll).Color },
                 { "$g", ((SolidBrush)GearGraphics.Equip22BrushGray).Color },
                 { "$d", ((SolidBrush)GearGraphics.Equip22BrushDarkGray).Color },
+                { "$S", ((SolidBrush)GearGraphics.ItemPriceBrush).Color },
             };
             var itemPotentialColorTable = new Dictionary<string, Color>()
             {
@@ -224,7 +227,7 @@ namespace WzComparerR2.CharaSimControl
             picH = 10;
 
             // 스타포스 별
-            int maxStar = Math.Max(Gear.GetMaxStar(), Gear.Star);
+            int maxStar = Math.Max(Gear.GetMaxStar(CharaSimLoader.LoadedAstraSubWeapons), Gear.Star);
             if (maxStar == 30 && this.MaxStar25)
             {
                 maxStar -= 5;
@@ -456,7 +459,7 @@ namespace WzComparerR2.CharaSimControl
             picH += 18;
 
             // 착용 직업
-            string reqJobString = ItemStringHelper.GetExtraJobReqString(Gear.type);
+            string reqJobString = ItemStringHelper.GetExtraJobReqString(Gear.type, Gear.ReqSpecJobs.Count > 0, CharaSimLoader.LoadedAstraSubWeapons, Gear.ItemID);
             if (reqJobString == null && Gear.Props.TryGetValue(GearPropType.reqSpecJob, out value))
             {
                 reqJobString = ItemStringHelper.GetExtraJobReqString(value);
@@ -1094,6 +1097,17 @@ namespace WzComparerR2.CharaSimControl
                 cosmeticSample.Bitmap.Dispose();
             }
 
+            // 어센틱심볼 추가효과 설명
+            if (!string.IsNullOrEmpty(Gear.SpecificTargetDesc))
+            {
+                AddLines(0, 7, ref picH, condition: secondLineNeeded);
+                secondLineNeeded = false;
+                hasThirdContents = true;
+
+                GearGraphics.DrawString(g, Gear.SpecificTargetDesc.Replace("#c", " #$g").Trim(), GearGraphics.EquipMDMoris9Font, equip22ColorTable, 15, 305, ref picH, 16, strictlyAlignLeft: 1);
+                picH += 4;
+            }
+
             // 장비 설명
             if (!string.IsNullOrEmpty(sr.Desc))
             {
@@ -1549,6 +1563,21 @@ namespace WzComparerR2.CharaSimControl
                 picH += 15;
             }
             */
+
+            if (Gear.Cash && ShowCashPurchasePrice)
+            {
+                if (CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot].ContainsKey(Gear.ItemID))
+                {
+                    var priceInfo = CharaSimLoader.LoadedCommodityPricesByItemId[LoadedCommoditiesSlot][Gear.ItemID].FirstOrDefault();
+                    int price = priceInfo.Price;
+                    string currency = priceInfo.Meso ? "메소" : "캐시";
+                    if (price > 0)
+                    {
+                        picH += 16;
+                        GearGraphics.DrawString(g, "#$S- 판매가격: " + ItemStringHelper.ToCJKNumberExpr(price) + currency + "#", GearGraphics.EquipMDMoris9Font, equip22ColorTable, 13, 244, ref picH, 16);
+                    }
+                }
+            }
 
             picH += 9;
             g.Dispose();
