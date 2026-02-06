@@ -40,7 +40,6 @@ namespace WzComparerR2
         public MainForm()
         {
             InitializeComponent();
-            this.Shown += new EventHandler(MainForm_Shown);
 #if NET6_0_OR_GREATER
             // https://learn.microsoft.com/en-us/dotnet/core/compatibility/fx-core#controldefaultfont-changed-to-segoe-ui-9pt
             this.Font = new Font("굴림", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(129)));
@@ -61,6 +60,9 @@ namespace WzComparerR2
         StringLinker stringLinker;
         HistoryList<Node> historyNodeList;
         bool historySelecting;
+
+        // ui event flags
+        bool _updatingClbRootNode;
 
         //soundPlayer
         BassSoundPlayer soundPlayer;
@@ -257,7 +259,6 @@ namespace WzComparerR2
             tooltipQuickView.SkillRender.DisplayCooltimeMSAsSec = Setting.Skill.DisplayCooltimeMSAsSec;
             tooltipQuickView.SkillRender.DisplayPermyriadAsPercent = Setting.Skill.DisplayPermyriadAsPercent;
             tooltipQuickView.SkillRender.IgnoreEvalError = Setting.Skill.IgnoreEvalError;
-            tooltipQuickView.SkillRender.ShowSkillValuesByJob = Setting.Skill.ShowSkillValuesByJob;
 
             this.skillDefaultLevel = Setting.Skill.DefaultLevel;
             this.skillInterval = Setting.Skill.IntervalLevel;
@@ -340,6 +341,7 @@ namespace WzComparerR2
         private void UpdateClbRootNode()
         {
             clbRootNode.SuspendLayout();
+            _updatingClbRootNode = true;
             var containList = Enumerable.Repeat(false, clbRootNode.Items.Count).ToList();
             foreach (var wzs in this.openedWz)
             {
@@ -355,21 +357,25 @@ namespace WzComparerR2
                     }
                 }
             }
-            for (int i = 0; i < containList.Count; i++)
+            clbRootNode.SetItemChecked(0, true); // Base.wz
+            for (int i = 1; i < containList.Count; i++)
             {
                 clbRootNode.SetItemChecked(i, containList[i]);
             }
+            _updatingClbRootNode = false;
             clbRootNode.ResumeLayout();
         }
 
         async Task<bool> AutomaticCheckUpdate()
         {
-            return await FrmUpdater.QueryUpdate();
+            FrmUpdater updater = new FrmUpdater();
+            return await updater.QueryUpdate();
             // Following code is from JMS implementation
             /*var config = WcR2Config.Default;
             if (config.EnableAutoUpdate)
             {
-                return await FrmUpdater.QueryUpdate();
+                FrmUpdater updater = new FrmUpdater();
+                return await updater.QueryUpdate();
             }
             else
             {
@@ -816,7 +822,7 @@ namespace WzComparerR2
                         this.pictureBoxEx1.PictureName = name;
                     }
                     */
-                }
+        }
                 return;
             }
             else
@@ -4271,6 +4277,27 @@ namespace WzComparerR2
                         frm.Refresh();
                         return;
 
+                    case Keys.PageDown:
+                        if (!frm.SkillRender.ShowSkillValuesByJob)
+                        {
+                            skill.PerJobIndex += 1;
+                            frm.Refresh();
+                        }
+                        break;
+
+                    case Keys.PageUp:
+                        if (!frm.SkillRender.ShowSkillValuesByJob)
+                        {
+                            skill.PerJobIndex -= 1;
+                            frm.Refresh();
+                        }
+                        break;
+
+                    case Keys.End:
+                        frm.SkillRender.ShowSkillValuesByJob = !frm.SkillRender.ShowSkillValuesByJob;
+                        frm.Refresh();
+                        break;
+
                     case Keys.OemOpenBrackets:
                         skill.Level -= this.skillInterval;
                         frm.Refresh();
@@ -4704,6 +4731,8 @@ namespace WzComparerR2
 
         private void clbRootNode_ItemCheck(object sender, ItemCheckEventArgs e)
         {
+            if (_updatingClbRootNode) return;
+
             if (e.Index == clbRootNode.Items.IndexOf("Base"))
             {
                 if (e.NewValue == CheckState.Unchecked)
@@ -4815,7 +4844,6 @@ namespace WzComparerR2
                             tooltip.ShowDelay = Setting.Skill.ShowDelay;
                             tooltip.IgnoreEvalError = Setting.Skill.IgnoreEvalError;
                             tooltip.Enable22AniStyle = Setting.Misc.Enable22AniStyle;
-                            tooltip.ShowSkillValuesByJob = Setting.Skill.ShowSkillValuesByJob;
                             foreach (var i in selectedJob)
                             {
                                 var jobImg = PluginManager.FindWz($"Skill\\{i:D3}.img\\skill");
@@ -5001,7 +5029,9 @@ namespace WzComparerR2
 
         private void buttonItemUpdate_Click(object sender, EventArgs e)
         {
-            new FrmUpdater().ShowDialog();
+            var frm = new FrmUpdater();
+            frm.Load(WcR2Config.Default);
+            frm.ShowDialog();
         }
 
         private void btnItemOptions_Click(object sender, System.EventArgs e)

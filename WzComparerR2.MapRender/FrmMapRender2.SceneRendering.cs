@@ -54,6 +54,7 @@ namespace WzComparerR2.MapRender
                     else if (item is ObjItem)
                     {
                         var _item = (ObjItem)item;
+                        ApplyMapEvents(_item.Events, _item.View.Animator, _item.SpineAni);
                         (_item.View.Animator as WzComparerR2.Controls.AnimationItem)?.Update(elapsed);
                         _item.View.Time += (int)elapsed.TotalMilliseconds;
                     }
@@ -150,9 +151,64 @@ namespace WzComparerR2.MapRender
             }
         }
 
+        private void ApplyMapEvents(IEnumerable<ItemEvent> itemEvents, object animator, string defaultAniName)
+        {
+            if (itemEvents.Count() == 0 || animator is not ISpineAnimator)
+            {
+                return;
+            }
+            var cursorPos = renderEnv.Camera.CameraToWorld(renderEnv.Input.MousePosition);
+            var eventList = itemEvents.Select(ie =>
+                {
+                    return new
+                    {
+                        SlotName = ie.SlotName,
+                        Animation = ie.Animation,
+                        MapEvent = this.mapData.Events.FirstOrDefault(me => me.Index == ie.ActionKey),
+                        Rect = (animator as ISpineAnimator).GetBounds(ie.SlotName),
+                    };
+                }).Where(data => data.MapEvent != null || !string.IsNullOrEmpty(data.Animation));
+
+            foreach (var data in eventList)
+            {
+                var sensorRect = data.Rect;
+                if (sensorRect.Contains(cursorPos))
+                {
+                    if (!string.IsNullOrEmpty(data.Animation))
+                    {
+                        var tmpMapEvent = new MapEvent(null, "SetAnimationOnceAndReturn", defaultAniName, data.Animation, null);
+                        InvokeMapEvent(animator as ISpineAnimator, tmpMapEvent);
+                    }
+                    else InvokeMapEvent(animator as ISpineAnimator, data.MapEvent);
+                }
+            }
+        }
+
+        private void InvokeMapEvent(ISpineAnimator spine, MapEvent mapEvent)
+        {
+            if (spine != null && mapEvent != null)
+            {
+                switch (mapEvent.Type)
+                {
+                    case MapEventType.SetAnimationOnceAndReturn:
+                        if (spine.NextAnimationName.Count > 0)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            spine.SelectedAnimationName = mapEvent.ChangedAnimation;
+                            spine.NextAnimationName.Enqueue(mapEvent.DefaultAnimation);
+                        }
+                        break;
+                }
+            }
+        }
+
         private void UpdateTooltip()
         {
             var mouse = renderEnv.Input.MousePosition;
+            mouse = renderEnv.Camera.DivideByScale(mouse);
 
             var mouseElem = EmptyKeys.UserInterface.Input.InputManager.Current.MouseDevice.MouseOverElement;
             object target = null;
@@ -215,7 +271,9 @@ namespace WzComparerR2.MapRender
             var mouse = this.renderEnv.Input.MousePosition;
             var mousePos = this.renderEnv.Camera.CameraToWorld(mouse);
             sb.AppendFormat("{0},{1}", mousePos.X, mousePos.Y);
-            
+
+            sb.AppendFormat(" Scale: x{0:f2}", this.renderEnv.Camera.Scale);
+
             sb.AppendFormat(" Time: [{0:f3}]", cm.GameTime.TotalGameTime.TotalMilliseconds / 1000);
             this.ui.TopBar.Text = sb.ToString();
         }
@@ -329,8 +387,9 @@ namespace WzComparerR2.MapRender
 
             allItems.Clear();
             var camera = this.renderEnv.Camera;
+            var cameraScale = this.renderEnv.Camera.Scale;
             var origin = camera.Origin;
-            this.batcher.Begin(origin, (float)(gameTime.TotalGameTime.TotalSeconds % 1000));
+            this.batcher.Begin(origin, (float)(gameTime.TotalGameTime.TotalSeconds % 1000), cameraScale);
             Rectangle[] rects = null;
             //绘制场景
             foreach (var kv in GetDrawableItems(this.mapData.Scene))
@@ -352,8 +411,8 @@ namespace WzComparerR2.MapRender
                     {
                         for (int i = 0; i < rectCount; i++)
                         {
-                            rects[i].X -= (int)origin.X;
-                            rects[i].Y -= (int)origin.Y;
+                            rects[i].X -= (int)(origin.X / cameraScale);
+                            rects[i].Y -= (int)(origin.Y / cameraScale);
                             allItems.Add(new ItemRect() { item = kv.Key, rect = rects[i] });
                         }
                     }
@@ -378,11 +437,12 @@ namespace WzComparerR2.MapRender
         {
             var pos = renderEnv.Camera.CameraToWorld(renderEnv.Input.MousePosition);
             var origin = renderEnv.Camera.Origin.ToPoint();
+            var scale = renderEnv.Camera.Scale;
             foreach (var item in mapData.Tooltips)
             {
                 if (item.CharRect.Contains(pos) || item.Rect.Contains(pos))
                 {
-                    var center = new Vector2(item.Rect.Center.X - origin.X, item.Rect.Center.Y - origin.Y);
+                    var center = new Vector2((int)(item.Rect.Center.X * scale - origin.X), (int)(item.Rect.Center.Y * scale - origin.Y));
                     tooltip.Draw(gameTime, renderEnv, item, center);
                 }
             }
@@ -633,8 +693,9 @@ namespace WzComparerR2.MapRender
             if (patchVisibility.CaptureRectVisible)
             {
                 var camera = this.renderEnv.Camera;
+                var cameraScale = this.renderEnv.Camera.Scale;
                 var origin = camera.Origin;
-                this.batcher.Begin(origin, (float)(gameTime.TotalGameTime.TotalSeconds % 1000));
+                this.batcher.Begin(origin, (float)(gameTime.TotalGameTime.TotalSeconds % 1000), cameraScale);
 
                 Rectangle rect = this.renderEnv.Camera.WorldRect;
                 if (!this.CaptureRect.IsEmpty)
@@ -787,9 +848,10 @@ namespace WzComparerR2.MapRender
         {
             var mapLight = this.mapData.Light;
             var origin = this.renderEnv.Camera.Origin.ToPoint();
+            var scale = this.renderEnv.Camera.Scale;
             this.GraphicsDevice.Clear(mapLight.BackColor);
 
-            this.lightRenderer.Begin(Matrix.CreateTranslation(new Vector3(-origin.X, -origin.Y, 0)));
+            this.lightRenderer.Begin(Matrix.CreateScale(scale, scale, 1) * Matrix.CreateTranslation(new Vector3(-origin.X, -origin.Y, 0)));
             // render spot light
             foreach (var light2D in mapLight.Lights)
             {
@@ -1059,7 +1121,8 @@ namespace WzComparerR2.MapRender
             Rectangle? tileRect = null;
             if (back.TileMode != TileMode.None)
             {
-                var cameraRect = renderEnv.Camera.ClipRect;
+                //var cameraRect = renderEnv.Camera.ClipRect;
+                var cameraRect = renderEnv.Camera.ScaledClipRect;
 
                 int l, t, r, b;
                 if ((back.TileMode & TileMode.Horizontal) != 0 && cx > 0)
