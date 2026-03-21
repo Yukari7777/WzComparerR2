@@ -162,7 +162,7 @@ namespace WzComparerR2.WzLib
                                 this.TryDetectEnc();
                                 if (!this.checEnc)
                                 {
-                                    e = null;
+                                    e = new InvalidDataException(this.BuildBinaryDetectionFailureMessage());
                                     return false;
                                 }
                             }
@@ -184,13 +184,24 @@ namespace WzComparerR2.WzLib
 
                             if (!this.IsLuaImage)
                             {
-                                ExtractImg(reader, this.Node);
+                                byte firstByte = reader.ReadByte();
+                                reader.BaseStream.Position = 0;
+
+                                if (firstByte != 0x73 && firstByte != 0x1B && this.TryExtractImplicitPropertyRoot(reader, this.Node))
+                                {
+                                    this.extr = true;
+                                }
+                                else
+                                {
+                                    ExtractImg(reader, this.Node);
+                                    this.extr = true;
+                                }
                             }
                             else
                             {
                                 ExtractLua(reader);
+                                this.extr = true;
                             }
-                            this.extr = true;
                         }
                     }
                     catch (Exception ex)
@@ -450,7 +461,7 @@ namespace WzComparerR2.WzLib
             var wzsEncType = this.WzFile.WzStructure.encryption.Pkg1EncType;
             if (wzsEncType != default)
             {
-                if (this.IsIllegalTag(wzsEncType))
+                if (this.IsLegalBinaryRoot(wzsEncType))
                 {
                     this.encType = wzsEncType;
                     this.checEnc = true;
@@ -459,12 +470,14 @@ namespace WzComparerR2.WzLib
             }
 
             foreach (var enc in new[] {
+                Wz_CryptoKeyType.Unknown,
                 Wz_CryptoKeyType.BMS,
                 Wz_CryptoKeyType.KMS,
                 Wz_CryptoKeyType.GMS,
+                Wz_CryptoKeyType.KMST1198,
             })
             {
-                if (this.IsIllegalTag(enc))
+                if (this.IsLegalBinaryRoot(enc))
                 {
                     this.encType = enc;
                     this.checEnc = true;
@@ -473,24 +486,241 @@ namespace WzComparerR2.WzLib
             }
         }
 
-        private bool IsIllegalTag(Wz_CryptoKeyType keyType)
+        private bool IsLegalBinaryRoot(Wz_CryptoKeyType keyType)
         {
             this.stream.Position = 0;
             var reader = new WzBinaryReader(this.stream, false);
-            var encKey = this.WzFile.WzStructure.encryption.GetKeys(keyType);
-            switch (reader.ReadImageObjectTypeName(encKey))
+            var encKey = this.GetKeysOrNonOp(keyType);
+
+            try
             {
-                case "Property":
-                case "Shape2D#Vector2D":
-                case "Canvas":
-                case "Shape2D#Convex2D":
-                case "Sound_DX8":
-                case "UOL":
-                case "RawData":
+                switch (reader.ReadImageObjectTypeName(encKey))
+                {
+                    case "Property":
+                    case "Shape2D#Vector2D":
+                    case "Canvas":
+                    case "Shape2D#Convex2D":
+                    case "Sound_DX8":
+                    case "UOL":
+                    case "RawData":
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+            catch
+            {
+                reader.BaseStream.Position = 0;
+                return this.TryProbeImplicitPropertyRoot(reader, encKey);
+            }
+        }
+
+        private IWzDecrypter GetKeysOrNonOp(Wz_CryptoKeyType keyType)
+        {
+            return keyType == Wz_CryptoKeyType.Unknown
+                ? Wz_Crypto.Wz_NonOpCryptoKey.Instance
+                : this.WzFile.WzStructure.encryption.GetKeys(keyType) ?? Wz_Crypto.Wz_NonOpCryptoKey.Instance;
+        }
+
+        private string BuildBinaryDetectionFailureMessage()
+        {
+            try
+            {
+                using var probeStream = this.OpenRead();
+                lock (this.WzFile.ReadLock)
+                {
+                    probeStream.Position = 0;
+                    int count = (int)Math.Min(32, probeStream.Length);
+                    byte[] buffer = new byte[count];
+                    int read = probeStream.Read(buffer, 0, count);
+                    if (read > 0 && read != buffer.Length)
+                    {
+                        Array.Resize(ref buffer, read);
+                    }
+
+                    string hex = read > 0 ? string.Join(" ", buffer.Select(b => b.ToString("X2"))) : "<empty>";
+                    string ascii = read > 0 ? new string(buffer.Select(b => 0x20 <= b && b <= 0x7E ? (char)b : '.').ToArray()) : string.Empty;
+                    string pkg2Hint = this.BuildPkg2PayloadHint(buffer);
+
+                    return $"Failed to detect binary image root. name={this.Name}, encType={this.encType}, size={this.Size}, offset={this.Offset}, firstBytes={hex}, ascii={ascii}{pkg2Hint}";
+                }
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to detect binary image root. name={this.Name}, encType={this.encType}, size={this.Size}, offset={this.Offset}, probeError={ex.GetType().Name}: {ex.Message}";
+            }
+        }
+
+        private string BuildPkg2PayloadHint(byte[] buffer)
+        {
+            if (buffer == null
+                || buffer.Length == 0
+                || this.WzFile is not Wz_File wzFile
+                || wzFile.Header?.Signature != Wz_Header.PKG2)
+            {
+                return string.Empty;
+            }
+
+            if (!TryReadLeadingCompressedInt(buffer, out int encryptedEntryCount))
+            {
+                return ", pkg2Candidates=<unavailable>";
+            }
+
+            uint hash1 = wzFile.Header.Pkg2Hash1;
+            uint hash2 = wzFile.Header.Pkg2Hash2;
+            var detector = new Wz_Header.Pkg2WzVersionDetector(hash1, hash2);
+            var candidates = new List<string>();
+            while (detector.TryGetNextVersion())
+            {
+                uint hashVersion = detector.HashVersion;
+                int decV1 = unchecked((int)(encryptedEntryCount ^ ((hash1 << 24) + (0x7F4A7C15u * hashVersion))));
+                int decV2 = unchecked((int)(encryptedEntryCount ^ ((hash1 << 16) + (0x21524111u * hashVersion))));
+
+                if (IsPlausiblePkg2EntryCount(decV1))
+                {
+                    candidates.Add($"wz={detector.WzVersion}/v1:{decV1}");
+                }
+
+                if (IsPlausiblePkg2EntryCount(decV2))
+                {
+                    candidates.Add($"wz={detector.WzVersion}/v2:{decV2}");
+                }
+
+                if (candidates.Count >= 8)
+                {
+                    break;
+                }
+            }
+
+            string candidateText = candidates.Count > 0 ? string.Join(" | ", candidates) : "<none plausible>";
+            return $", pkg2EncryptedCount={encryptedEntryCount}, pkg2Candidates={candidateText}";
+        }
+
+        private static bool TryReadLeadingCompressedInt(byte[] buffer, out int value)
+        {
+            value = 0;
+            if (buffer == null || buffer.Length == 0)
+            {
+                return false;
+            }
+
+            sbyte head = unchecked((sbyte)buffer[0]);
+            if (head != -128)
+            {
+                value = head;
+                return true;
+            }
+
+            if (buffer.Length < 5)
+            {
+                return false;
+            }
+
+            value = BitConverter.ToInt32(buffer, 1);
+            return true;
+        }
+
+        private static bool IsPlausiblePkg2EntryCount(int entryCount)
+        {
+            return entryCount > 0 && entryCount <= 0x200000;
+        }
+
+        private bool TryProbeImplicitPropertyRoot(WzBinaryReader reader, IWzDecrypter decrypter)
+        {
+            long startPosition = reader.BaseStream.Position;
+            try
+            {
+                int entries = reader.ReadCompressedInt32();
+                if (entries < 0 || entries > 0x100000)
+                {
+                    return false;
+                }
+
+                if (entries == 0)
+                {
                     return true;
+                }
+
+                string firstName = reader.ReadImageString(decrypter);
+                if (!IsPlausiblePropertyName(firstName))
+                {
+                    return false;
+                }
+
+                return IsSupportedValueType(reader.ReadByte());
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                reader.BaseStream.Position = startPosition;
+            }
+        }
+
+        private bool TryExtractImplicitPropertyRoot(WzBinaryReader reader, Wz_Node parent)
+        {
+            long startPosition = reader.BaseStream.Position;
+            try
+            {
+                if (!this.TryProbeImplicitPropertyRoot(reader, this.EncKeys))
+                {
+                    return false;
+                }
+
+                reader.BaseStream.Position = startPosition;
+                int entries = reader.ReadCompressedInt32();
+                for (int i = 0; i < entries; i++)
+                {
+                    ExtractValue(reader, parent);
+                }
+                return true;
+            }
+            catch
+            {
+                reader.BaseStream.Position = startPosition;
+                throw;
+            }
+        }
+
+        private static bool IsSupportedValueType(byte flag)
+        {
+            switch (flag)
+            {
+                case 0x00:
+                case 0x02:
+                case 0x0B:
+                case 0x03:
+                case 0x13:
+                case 0x14:
+                case 0x04:
+                case 0x05:
+                case 0x08:
+                case 0x09:
+                    return true;
+
                 default:
                     return false;
             }
+        }
+
+        private static bool IsPlausiblePropertyName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || name.Length > 255)
+            {
+                return false;
+            }
+
+            foreach (char c in name)
+            {
+                if (char.IsControl(c))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void ExtractValue(WzBinaryReader reader, Wz_Node parent)

@@ -396,6 +396,18 @@ namespace WzComparerR2
                 e.WzType = Enum.TryParse<Wz_Type>(fullPath[0], true, out var wzType) ? wzType : Wz_Type.Unknown;
             }
 
+            static bool LooksLikeSkillRootNode(Wz_Node node)
+            {
+                return node != null
+                    && node.Nodes.Count > 0
+                    && (node.Text.StartsWith("Skill", StringComparison.OrdinalIgnoreCase)
+                        || node.Nodes["RidingSkillInfo.img"] != null
+                        || node.Nodes.Cast<Wz_Node>().Any(child =>
+                            child.Text.EndsWith(".img", StringComparison.OrdinalIgnoreCase)
+                            && (char.IsDigit(child.Text[0])
+                                || child.Text.StartsWith("Recipe_", StringComparison.OrdinalIgnoreCase))));
+            }
+
             List<Wz_Node> preSearch = new List<Wz_Node>();
             if (e.WzType != Wz_Type.Unknown) //用wztype作为输入参数
             {
@@ -418,6 +430,13 @@ namespace WzComparerR2
                             find = true;
                             //e.WzFile = wz_f;
                         }
+                        else if (e.WzType == Wz_Type.Skill
+                            && wz_f.Type == Wz_Type.Unknown
+                            && LooksLikeSkillRootNode(wz_f.Node))
+                        {
+                            preSearch.Add(wz_f.Node);
+                            find = true;
+                        }
                         if (wz_f.Type == Wz_Type.Base)
                         {
                             baseWz = wz_f;
@@ -430,7 +449,10 @@ namespace WzComparerR2
                         string key = e.WzType.ToString();
                         foreach (Wz_Node node in baseWz.Node.Nodes)
                         {
-                            if (node.Text == key && node.Nodes.Count > 0)
+                            bool exactMatch = node.Text == key;
+                            bool skillLikeMatch = e.WzType == Wz_Type.Skill && LooksLikeSkillRootNode(node);
+
+                            if ((exactMatch || skillLikeMatch) && node.Nodes.Count > 0)
                             {
                                 preSearch.Add(node);
                             }
@@ -1672,6 +1694,17 @@ namespace WzComparerR2
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Version", subFile.Header.WzVersion.ToString() }));
                 }
 
+                if (ShouldGenerateTreeDebug(wzFile))
+                {
+                    string debugText = BuildWzTreeDebugText(wzFile, selectedNode);
+                    listViewExWzDetail.Items.Add(new ListViewItem(new string[]
+                    {
+                        "Tree Debug",
+                        debugText
+                    }));
+                    textBoxX1.Text = "Tree Debug\r\n" + selectedNode.FullPathToFile + "\r\n\r\n" + debugText;
+                }
+
                 autoResizeColumns(listViewExWzDetail);
             }
             else if (selectedNode.Value is Wz_Image wzImage)
@@ -1681,6 +1714,18 @@ namespace WzComparerR2
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Image Offset", wzImage.Offset + " bytes" }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Path", wzImage.Node.FullPathToFile }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Check Sum", wzImage.Checksum.ToString() }));
+                Wz_File ownerWzFile = wzImage.Node.GetNodeWzFile();
+                Wz_File debugWzFile = wzImage.WzFile as Wz_File ?? ownerWzFile;
+                if (ShouldGenerateTreeDebug(debugWzFile) || ShouldGenerateTreeDebug(ownerWzFile))
+                {
+                    string debugText = BuildWzTreeDebugText(debugWzFile, wzImage.Node, ownerWzFile);
+                    listViewExWzDetail.Items.Add(new ListViewItem(new string[]
+                    {
+                        "Tree Debug",
+                        debugText
+                    }));
+                    textBoxX1.Text = "Tree Debug\r\n" + wzImage.Node.FullPathToFile + "\r\n\r\n" + debugText;
+                }
                 autoResizeColumns(listViewExWzDetail);
 
                 advTree2.ClearAndDisposeAllNodes();
@@ -1698,16 +1743,32 @@ namespace WzComparerR2
                         double ms = (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000);
 
                         labelItemStatus.Text = "불러오기 완료: 소요 시간 " + ms + "ms";
+                        if (ShouldGenerateTreeDebug(debugWzFile) || ShouldGenerateTreeDebug(ownerWzFile))
+                        {
+                            string debugText = BuildWzTreeDebugText(debugWzFile, wzImage.Node, ownerWzFile);
+                            textBoxX1.Text = "Tree Debug\r\n" + wzImage.Node.FullPathToFile + "\r\n\r\n" + debugText;
+                        }
                     }
                     else
                     {
-
-                        labelItemStatus.Text = "불러오기 실패: " + ex.Message;
+                        string detail = BuildLoadFailureText(wzImage.Node.FullPathToFile, ex)
+                            + "\r\n\r\n"
+                            + BuildImagePayloadProbeText(wzImage);
+                        labelItemStatus.Text = "불러오기 실패: " + (ex?.Message ?? "unknown error");
+                        listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Load Error", detail }));
+                        textBoxX1.Text = "Load Error\r\n" + wzImage.Node.FullPathToFile + "\r\n\r\n" + detail;
+                        System.Diagnostics.Debug.WriteLine(detail);
                     }
                 }
                 catch (Exception ex)
                 {
+                    string detail = BuildLoadFailureText(wzImage.Node.FullPathToFile, ex)
+                        + "\r\n\r\n"
+                        + BuildImagePayloadProbeText(wzImage);
                     labelItemStatus.Text = "불러오기 실패: " + ex.Message;
+                    listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Load Error", detail }));
+                    textBoxX1.Text = "Load Error\r\n" + wzImage.Node.FullPathToFile + "\r\n\r\n" + detail;
+                    System.Diagnostics.Debug.WriteLine(detail);
                 }
             }
             listViewExWzDetail.EndUpdate();
@@ -1821,6 +1882,316 @@ namespace WzComparerR2
             };
         }
 
+        private string BuildPngDebugText(Wz_Png png)
+        {
+            return "dataLength: " + png.DataLength + " bytes\r\n" +
+                "offset: " + png.Offset + "\r\n" +
+                "size: " + png.Width + "*" + png.Height + "\r\n" +
+                "png format: " + png.Format + "(" + (int)png.Format + ")\r\n" +
+                "scale: " + png.Scale + "(x" + png.ActualScale + ")\r\n" +
+                "pages: " + png.Pages + "(" + png.ActualPages + ")\r\n" +
+                "unknown1: " + png.Unknown1;
+        }
+
+        private string BuildLoadFailureText(string subject, Exception ex)
+        {
+            if (ex == null)
+            {
+                return subject + "\r\n\r\nNo exception was captured.";
+            }
+
+            return subject + "\r\n\r\n" + ex;
+        }
+
+        private bool ShouldGenerateTreeDebug(Wz_File wzFile)
+        {
+            return wzFile != null
+                && (wzFile.Type == Wz_Type.Skill
+                    || wzFile.Type == Wz_Type.Unknown
+                    || wzFile.IsSubDir);
+        }
+
+        private string BuildWzTreeDebugText(Wz_File wzFile, Wz_Node root, Wz_File ownerTreeWzFile = null)
+        {
+            var sb = new StringBuilder();
+            if (wzFile != null)
+            {
+                sb.Append("file name: ").Append(wzFile.Header.FileName)
+                    .Append("\r\nsignature: ").Append(wzFile.Header.Signature)
+                    .Append("\r\nfile size: ").Append(wzFile.Header.FileSize).Append(" bytes")
+                    .Append("\r\nheader size: ").Append(wzFile.Header.HeaderSize)
+                    .Append("\r\ndata size: ").Append(wzFile.Header.DataSize)
+                    .Append("\r\ndata start position: ").Append(wzFile.Header.DataStartPosition)
+                    .Append("\r\ndir end position: ").Append(wzFile.Header.DirEndPosition)
+                    .Append("\r\ncopyright: ").Append(wzFile.Header.Copyright)
+                    .Append("\r\nversion: ").Append(wzFile.GetMergedVersion())
+                    .Append("\r\nhash version: ").Append(wzFile.Header.HashVersion)
+                    .Append("\r\nversion checked: ").Append(wzFile.Header.VersionChecked)
+                    .Append("\r\nwz type: ").Append(wzFile.IsSubDir ? "SubDir" : wzFile.Type.ToString())
+                    .Append("\r\nis subdir: ").Append(wzFile.IsSubDir)
+                    .Append("\r\nmerged files: ").Append(wzFile.MergedWzFiles.Count());
+
+                int index = 0;
+                foreach (Wz_File subFile in wzFile.MergedWzFiles)
+                {
+                    sb.Append("\r\nsubfile[").Append(index++).Append("]: ")
+                        .Append(subFile.Header.FileName)
+                        .Append(", size=").Append(subFile.Header.FileSize)
+                        .Append(", version=").Append(subFile.Header.WzVersion)
+                        .Append(", type=").Append(subFile.IsSubDir ? "SubDir" : subFile.Type.ToString());
+                }
+
+                if ((root?.Value is Wz_File || root?.Nodes.Count == 0) && wzFile.FileStream != null)
+                {
+                    sb.Append("\r\n\r\n")
+                        .Append(BuildWzFilePayloadProbeText(wzFile));
+                }
+
+                sb.Append("\r\n\r\n");
+            }
+
+            if (ownerTreeWzFile != null && !object.ReferenceEquals(ownerTreeWzFile, wzFile))
+            {
+                sb.Append("owner tree file name: ").Append(ownerTreeWzFile.Header.FileName)
+                    .Append("\r\nowner tree signature: ").Append(ownerTreeWzFile.Header.Signature)
+                    .Append("\r\nowner tree file size: ").Append(ownerTreeWzFile.Header.FileSize).Append(" bytes")
+                    .Append("\r\nowner tree version: ").Append(ownerTreeWzFile.GetMergedVersion())
+                    .Append("\r\nowner tree wz type: ").Append(ownerTreeWzFile.IsSubDir ? "SubDir" : ownerTreeWzFile.Type.ToString())
+                    .Append("\r\n\r\n");
+            }
+
+            if (root?.Value is Wz_Image wzImage)
+            {
+                sb.Append("image name: ").Append(wzImage.Name)
+                    .Append("\r\nimage size: ").Append(wzImage.Size).Append(" bytes")
+                    .Append("\r\nimage offset: ").Append(wzImage.Offset).Append(" bytes")
+                    .Append("\r\npath: ").Append(wzImage.Node.FullPathToFile)
+                    .Append("\r\nchecksum: ").Append(wzImage.Checksum)
+                    .Append("\r\nwz file: ").Append(wzImage.WzFile is Wz_File imageWzFile ? imageWzFile.Header.FileName : "<none>")
+                    .Append("\r\nwz file signature: ").Append(wzImage.WzFile is Wz_File imageFile ? imageFile.Header.Signature : "<none>")
+                    .Append("\r\n\r\n")
+                    .Append(BuildImagePayloadProbeText(wzImage))
+                    .Append("\r\n\r\n");
+            }
+
+            sb.Append(BuildNodeStructureDebugText(root));
+            return sb.ToString();
+        }
+
+        private string BuildWzFilePayloadProbeText(Wz_File wzFile)
+        {
+            if (wzFile == null)
+            {
+                return "file payload probe: <no file>";
+            }
+
+            try
+            {
+                long payloadOffset = Math.Max(0, Math.Max(wzFile.Header.DataStartPosition, wzFile.Header.DirEndPosition));
+                long originalPosition = wzFile.FileStream.Position;
+                try
+                {
+                    wzFile.FileStream.Position = payloadOffset;
+                    int count = (int)Math.Min(32, wzFile.FileStream.Length - payloadOffset);
+                    if (count <= 0)
+                    {
+                        return "file payload probe: <empty payload>";
+                    }
+
+                    byte[] buffer = new byte[count];
+                    int read = wzFile.FileStream.Read(buffer, 0, count);
+                    if (read <= 0)
+                    {
+                        return "file payload probe: <empty payload>";
+                    }
+
+                    if (read != buffer.Length)
+                    {
+                        Array.Resize(ref buffer, read);
+                    }
+
+                    string hex = string.Join(" ", buffer.Select(b => b.ToString("X2")));
+                    string ascii = new string(buffer.Select(b => 0x20 <= b && b <= 0x7E ? (char)b : '.').ToArray());
+                    return "file payload offset: " + payloadOffset
+                        + "\r\nfile payload first bytes: " + hex
+                        + "\r\nfile payload ascii: " + ascii;
+                }
+                finally
+                {
+                    wzFile.FileStream.Position = originalPosition;
+                }
+            }
+            catch (Exception ex)
+            {
+                return "file payload probe error: " + ex.GetType().Name + ": " + ex.Message;
+            }
+        }
+
+        private string BuildImagePayloadProbeText(Wz_Image wzImage)
+        {
+            if (wzImage == null)
+            {
+                return "payload probe: <no image>";
+            }
+
+            try
+            {
+                using var stream = wzImage.OpenRead();
+                stream.Position = 0;
+
+                int count = (int)Math.Min(32, stream.Length);
+                byte[] buffer = new byte[count];
+                int read = stream.Read(buffer, 0, count);
+                if (read <= 0)
+                {
+                    return "payload probe: <empty stream>";
+                }
+
+                if (read != buffer.Length)
+                {
+                    Array.Resize(ref buffer, read);
+                }
+
+                string hex = string.Join(" ", buffer.Select(b => b.ToString("X2")));
+                string ascii = new string(buffer.Select(b => 0x20 <= b && b <= 0x7E ? (char)b : '.').ToArray());
+                bool looksLikeTextV1 = buffer.Length >= 9 && Encoding.ASCII.GetString(buffer, 0, 9) == "#Property";
+                bool looksLikeTextV2 = buffer.Length >= 4 && Encoding.ASCII.GetString(buffer, 0, 4) == "Root";
+                bool looksLikeBinaryImage = buffer[0] == 0x73 || buffer[0] == 0x1B;
+                bool looksLikeCompressedIntRoot = TryReadLeadingCompressedInt(buffer, out int leadingCompressedInt);
+
+                var sb = new StringBuilder();
+                sb.Append("payload length: ").Append(stream.Length)
+                    .Append("\r\npayload first byte: ").Append(buffer[0]).Append(" (0x").Append(buffer[0].ToString("X2")).Append(')')
+                    .Append("\r\npayload first bytes: ").Append(hex)
+                    .Append("\r\npayload ascii: ").Append(ascii)
+                    .Append("\r\nlooks like text-v1 (#Property): ").Append(looksLikeTextV1)
+                    .Append("\r\nlooks like text-v2 (Root): ").Append(looksLikeTextV2)
+                    .Append("\r\nlooks like binary-image-flag (0x73/0x1B): ").Append(looksLikeBinaryImage)
+                    .Append("\r\nlooks like leading compressed-int root: ").Append(looksLikeCompressedIntRoot);
+
+                if (looksLikeCompressedIntRoot)
+                {
+                    sb.Append("\r\nleading compressed-int value: ").Append(leadingCompressedInt);
+                }
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return "payload probe error: " + ex.GetType().Name + ": " + ex.Message;
+            }
+        }
+
+        private static bool TryReadLeadingCompressedInt(byte[] buffer, out int value)
+        {
+            value = 0;
+            if (buffer == null || buffer.Length == 0)
+            {
+                return false;
+            }
+
+            sbyte head = unchecked((sbyte)buffer[0]);
+            if (head != -128)
+            {
+                value = head;
+                return true;
+            }
+
+            if (buffer.Length < 5)
+            {
+                return false;
+            }
+
+            value = BitConverter.ToInt32(buffer, 1);
+            return true;
+        }
+
+        private string BuildNodeStructureDebugText(Wz_Node root)
+        {
+            if (root == null)
+            {
+                return "No extracted node tree.";
+            }
+
+            int totalNodeCount = 0;
+            int pngCount = 0;
+            int rawDataCount = 0;
+            int videoCount = 0;
+            int canvasNameCount = 0;
+            var candidatePaths = new List<string>();
+
+            void Visit(Wz_Node node)
+            {
+                if (node == null)
+                {
+                    return;
+                }
+
+                totalNodeCount++;
+
+                if (node.Text?.IndexOf("_Canvas", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    canvasNameCount++;
+                }
+
+                if (node.Value is Wz_Png)
+                {
+                    pngCount++;
+                    if (candidatePaths.Count < 10)
+                    {
+                        candidatePaths.Add(node.FullPathToFile + " [png]");
+                    }
+                }
+                else if (node.Value is Wz_RawData)
+                {
+                    rawDataCount++;
+                    if (candidatePaths.Count < 10)
+                    {
+                        candidatePaths.Add(node.FullPathToFile + " [rawdata]");
+                    }
+                }
+                else if (node.Value is Wz_Video)
+                {
+                    videoCount++;
+                    if (candidatePaths.Count < 10)
+                    {
+                        candidatePaths.Add(node.FullPathToFile + " [video]");
+                    }
+                }
+                else if (candidatePaths.Count < 10
+                    && (node.Text?.IndexOf("icon", StringComparison.OrdinalIgnoreCase) >= 0
+                        || node.Text?.IndexOf("canvas", StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    candidatePaths.Add(node.FullPathToFile + " [name]");
+                }
+
+                foreach (Wz_Node child in node.Nodes)
+                {
+                    Visit(child);
+                }
+            }
+
+            Visit(root);
+
+            var sb = new StringBuilder();
+            sb.Append("total nodes: ").Append(totalNodeCount)
+                .Append("\r\npng nodes: ").Append(pngCount)
+                .Append("\r\nrawdata nodes: ").Append(rawDataCount)
+                .Append("\r\nvideo nodes: ").Append(videoCount)
+                .Append("\r\n'_Canvas' named nodes: ").Append(canvasNameCount);
+
+            if (candidatePaths.Count > 0)
+            {
+                sb.Append("\r\n\r\ncandidate paths:");
+                foreach (string path in candidatePaths)
+                {
+                    sb.Append("\r\n").Append(path);
+                }
+            }
+
+            return sb.ToString();
+        }
+
         private void advTree3_AfterNodeSelect(object sender, AdvTreeNodeEventArgs e)
         {
             if (e.Node == null)
@@ -1842,27 +2213,29 @@ namespace WzComparerR2
             switch (selectedNode.Value)
             {
                 case Wz_Png png:
-                    pictureBoxEx1.PictureName = GetSelectedNodeImageName();
-                    pictureBoxEx1.ShowImage(png);
-                    this.cmbItemAniNames.Items.Clear();
-                    if (this.pictureBoxEx1.IsPaused)
-                    {
-                        ResumePictureBox();
-                    }
-                    if (png.ActualPages > 1)
-                    {
-                        for (int i = 0; i < png.ActualPages; i++)
-                            this.cmbItemAniNames.Items.Add(i);
-                    }
-
                     advTree3.PathSeparator = ".";
-                    textBoxX1.Text = "dataLength: " + png.DataLength + " bytes\r\n" +
-                        "offset: " + png.Offset + "\r\n" +
-                        "size: " + png.Width + "*" + png.Height + "\r\n" +
-                        "png format: " + png.Format + "(" + (int)png.Format + ")\r\n" +
-                        "scale: " + png.Scale + "(x" + png.ActualScale + ")\r\n" +
-                        "pages: " + png.Pages + "(" + png.ActualPages + ")\r\n" +
-                        "unknown1: " + png.Unknown1;
+                    textBoxX1.Text = BuildPngDebugText(png);
+
+                    try
+                    {
+                        pictureBoxEx1.PictureName = GetSelectedNodeImageName();
+                        pictureBoxEx1.ShowImage(png);
+                        this.cmbItemAniNames.Items.Clear();
+                        if (this.pictureBoxEx1.IsPaused)
+                        {
+                            ResumePictureBox();
+                        }
+                        if (png.ActualPages > 1)
+                        {
+                            for (int i = 0; i < png.ActualPages; i++)
+                                this.cmbItemAniNames.Items.Add(i);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        labelItemStatus.Text = "png 미리보기 실패: " + ex.Message;
+                        textBoxX1.AppendText("\r\n\r\n" + BuildLoadFailureText(selectedNode.FullPathToFile, ex));
+                    }
 
                     var sourceNode = selectedNode.GetLinkedSourceNode(PluginManager.FindWz);
                     if (sourceNode != selectedNode)
@@ -1876,18 +2249,20 @@ namespace WzComparerR2
                                 linkStr = linkStr.Replace("\n", "\r\n");
                             }
                             textBoxX1.AppendText("\r\n\r\n" + Convert.ToString(linkStr));
+                            textBoxX1.AppendText("\r\n\r\n" + BuildPngDebugText(png));
 
-                            pictureBoxEx1.PictureName = GetSelectedNodeImageName();
-                            pictureBoxEx1.ShowImage(png);
-                            this.cmbItemAniNames.Items.Clear();
-                            advTree3.PathSeparator = ".";
-                            textBoxX1.AppendText("\r\n\r\ndataLength: " + png.DataLength + " bytes\r\n" +
-                                "offset: " + png.Offset + "\r\n" +
-                                "size: " + png.Width + "*" + png.Height + "\r\n" +
-                                "png format: " + png.Format + "(" + (int)png.Format + ")\r\n" +
-                                "scale: " + png.Scale + "(x" + png.ActualScale + ")\r\n" +
-                                "pages: " + png.Pages + "(" + png.ActualPages + ")\r\n" +
-                                "unknown1: " + png.Unknown1);
+                            try
+                            {
+                                pictureBoxEx1.PictureName = GetSelectedNodeImageName();
+                                pictureBoxEx1.ShowImage(png);
+                                this.cmbItemAniNames.Items.Clear();
+                                advTree3.PathSeparator = ".";
+                            }
+                            catch (Exception ex)
+                            {
+                                labelItemStatus.Text = "png 미리보기 실패: " + ex.Message;
+                                textBoxX1.AppendText("\r\n\r\n" + BuildLoadFailureText(sourceNode.FullPathToFile, ex));
+                            }
                         }
                     }
                     break;
