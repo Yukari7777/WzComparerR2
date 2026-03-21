@@ -366,21 +366,25 @@ namespace WzComparerR2
             clbRootNode.ResumeLayout();
         }
 
-        async Task<bool> AutomaticCheckUpdate()
+        async Task AutomaticCheckUpdate()
         {
-            FrmUpdater updater = new FrmUpdater();
-            return await updater.QueryUpdate();
-            // Following code is from JMS implementation
-            /*var config = WcR2Config.Default;
-            if (config.EnableAutoUpdate)
+            var config = WcR2Config.Default;
+            var updater = new Updater();
+            try
             {
-                FrmUpdater updater = new FrmUpdater();
-                return await updater.QueryUpdate();
+                await updater.QueryUpdateAsync();
+                if (updater.UpdateAvailable)
+                {
+                    ToastNotification.Show(this, $"업데이트가 가능합니다. 버전: {updater.LatestVersionString}", 5000, eToastPosition.TopCenter);
+                    var frmUpdater = new FrmUpdater(updater);
+                    frmUpdater.LoadConfig(config);
+                    frmUpdater.ShowDialog(this);
+                }
             }
-            else
+            catch
             {
-                return false;
-            }*/
+                // ignore error
+            }
         }
 
         void CharaSimLoader_WzFileFinding(object sender, FindWzEventArgs e)
@@ -1857,7 +1861,8 @@ namespace WzComparerR2
                         "size: " + png.Width + "*" + png.Height + "\r\n" +
                         "png format: " + png.Format + "(" + (int)png.Format + ")\r\n" +
                         "scale: " + png.Scale + "(x" + png.ActualScale + ")\r\n" +
-                        "pages: " + png.Pages + "(" + png.ActualPages + ")";
+                        "pages: " + png.Pages + "(" + png.ActualPages + ")\r\n" +
+                        "unknown1: " + png.Unknown1;
 
                     var sourceNode = selectedNode.GetLinkedSourceNode(PluginManager.FindWz);
                     if (sourceNode != selectedNode)
@@ -1881,7 +1886,8 @@ namespace WzComparerR2
                                 "size: " + png.Width + "*" + png.Height + "\r\n" +
                                 "png format: " + png.Format + "(" + (int)png.Format + ")\r\n" +
                                 "scale: " + png.Scale + "(x" + png.ActualScale + ")\r\n" +
-                                "pages: " + png.Pages + "(" + png.ActualPages + ")");
+                                "pages: " + png.Pages + "(" + png.ActualPages + ")\r\n" +
+                                "unknown1: " + png.Unknown1);
                         }
                     }
                     break;
@@ -3973,6 +3979,13 @@ namespace WzComparerR2
                     obj = mob;
                     break;
 
+                case Wz_Type.Morph:
+                    if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
+                        return;
+                    var morph = Morph.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                    obj = morph;
+                    break;
+
                 case Wz_Type.Npc:
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
@@ -4034,6 +4047,9 @@ namespace WzComparerR2
                     switch (tooltipQuickView.TargetItem)
                     {
                         case Mob item:
+                            item.Dispose();
+                            break;
+                        case Morph item:
                             item.Dispose();
                             break;
                         case Npc item:
@@ -4105,6 +4121,11 @@ namespace WzComparerR2
                         sr_dict = stringLinker.StringMob;
                         node_id = mob.ID;
                         fileName = node_id + ".png";
+                        break;
+
+                    case Morph morph:
+                        node_id = morph.ID;
+                        fileName = "morph_" + node_id + ".png";
                         break;
 
                     case Npc npc:
@@ -5038,7 +5059,7 @@ namespace WzComparerR2
         private void buttonItemUpdate_Click(object sender, EventArgs e)
         {
             var frm = new FrmUpdater();
-            frm.Load(WcR2Config.Default);
+            frm.LoadConfig(WcR2Config.Default);
             frm.ShowDialog();
         }
 

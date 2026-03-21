@@ -152,6 +152,8 @@ namespace WzComparerR2.MapRender
             //加载地图数据
             var mapData = new MapData(this.Services.GetService<IRandom>());
             mapData.Load(this.mapImgLoading.Node, resLoader);
+            mapData.SoundEffPlayer = PlaySoundEff;
+            mapData.LoadMobResource = LoadMobResource;
 
             //处理bgm
             Music newBgm = LoadBgm(mapData);
@@ -181,6 +183,7 @@ namespace WzComparerR2.MapRender
             this.mapImg = this.mapImgLoading;
             this.mapImgLoading = null;
             this.mapData = mapData;
+            this.mapData.EnableMobMovement = this.enableMobMovement;
             this.bgm = newBgm;
             if (willSwitchBgm && this.bgm != null)
             {
@@ -215,7 +218,7 @@ namespace WzComparerR2.MapRender
 
         private Music LoadBgm(MapData mapData, string multiBgmText = null)
         {
-            if (!string.IsNullOrEmpty(mapData.Bgm))
+            if (!string.IsNullOrEmpty(mapData?.Bgm))
             {
                 var path = new List<string>() { "Sound" };
                 path.AddRange(mapData.Bgm.Split('/'));
@@ -572,7 +575,7 @@ namespace WzComparerR2.MapRender
 
         private async Task SetCameraChangedEffect(Vector2 pos)
         {
-            if (this.mapData.ID / 100 == 9932670)
+            if (this.mapData?.ID / 100 == 9932670)
             {
                 var bgmRegionsInfo = PluginManager.FindWz($@"Etc\MinigameClient.img\DimensionTower\fieldList\{this.mapData.ID}\bgmRegions");
                 if (bgmRegionsInfo != null)
@@ -663,6 +666,7 @@ namespace WzComparerR2.MapRender
             }
             //更新tooltip
             UpdateTooltip();
+            UpdateMinimapIcons();
         }
 
         private void MoveToPortal(int? toMap, string pName, string fromPName = null, bool isBack = false)

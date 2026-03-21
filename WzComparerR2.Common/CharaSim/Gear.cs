@@ -230,7 +230,7 @@ namespace WzComparerR2.CharaSim
             foreach (Wz_Node subNode in infoNode.Nodes)
             {
                 GearPropType type;
-                if (!int.TryParse(subNode.Text, out _) && Enum.TryParse(subNode.Text, out type) && (int)type < 100)
+                if (!int.TryParse(subNode.Text, out _) && Enum.TryParse(subNode.Text, true, out type) && (int)type < 100)
                 {
                     try
                     {
@@ -411,6 +411,34 @@ namespace WzComparerR2.CharaSim
                     return true;
                 default:
                     return IsWeapon(type) ? true : false;
+            }
+        }
+
+        public static bool CanCustomIllust(GearType type)
+        {
+            switch (type)
+            {
+                case GearType.body:
+                case GearType.head:
+                case GearType.hair:
+                case GearType.hair2:
+                case GearType.hair3:
+                case GearType.hair4:
+                case GearType.face:
+                case GearType.face2:
+                case GearType.cap:
+                case GearType.faceAccessory:
+                case GearType.eyeAccessory:
+                case GearType.earrings:
+                case GearType.coat:
+                case GearType.longcoat:
+                case GearType.pants:
+                case GearType.shoes:
+                case GearType.glove:
+                case GearType.cape:
+                    return true;
+                default:
+                    return false;
             }
         }
 
@@ -1064,7 +1092,7 @@ namespace WzComparerR2.CharaSim
                             foreach (Wz_Node statNode in subNode.Nodes)
                             {
                                 GearPropType type;
-                                if (Enum.TryParse(statNode.Text, out type))
+                                if (Enum.TryParse(statNode.Text, true, out type))
                                 {
                                     try
                                     {
@@ -1081,7 +1109,7 @@ namespace WzComparerR2.CharaSim
                             foreach (Wz_Node statNode in subNode.Nodes)
                             {
                                 GearPropType type;
-                                if (Enum.TryParse(statNode.Text, out type))
+                                if (Enum.TryParse(statNode.Text, true, out type))
                                 {
                                     try
                                     {
@@ -1144,7 +1172,7 @@ namespace WzComparerR2.CharaSim
                         default:
                             {
                                 GearPropType type;
-                                if (!int.TryParse(subNode.Text, out _) && Enum.TryParse(subNode.Text, out type))
+                                if (!int.TryParse(subNode.Text, out _) && Enum.TryParse(subNode.Text, true, out type))
                                 {
                                     try
                                     {

@@ -13,6 +13,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using WzComparerR2.Controls;
 using WzComparerR2.MapRender.Effects;
+using WzComparerR2.PluginBase;
 
 namespace WzComparerR2.MapRender
 {
@@ -70,11 +71,26 @@ namespace WzComparerR2.MapRender
                         var smAni = (life.View.Animator as StateMachineAnimator);
                         if (smAni != null)
                         {
-                            if (smAni.GetCurrent() == null) //当前无动作
+                            if (life.Type == LifeItem.LifeType.Mob)
                             {
-                                smAni.SetAnimation(smAni.Data.States[0]); //动作0
+                                if (life.Controller.BState == BehaviorController.BaseState.None) // 초기
+                                {
+                                    if (life.Controller.PlayRegenMotion)
+                                        life.Controller.SetRegen();
+                                    else
+                                        life.Controller.SetBaseIdle();
+                                    life.Controller.PlayRegenSound = true; // 리젠 소리 제한 해제
+                                }
+                            }
+                            else
+                            {
+                                if (smAni.GetCurrent() == null) //当前无动作
+                                {
+                                    smAni.SetAnimation(smAni.Data.States[0]); //动作0
+                                }
                             }
                             smAni.Update(elapsed);
+                            life.Controller.Update(elapsed);
                         }
 
                         life.View.Time += (int)elapsed.TotalMilliseconds;
@@ -149,6 +165,7 @@ namespace WzComparerR2.MapRender
                     UpdateAllItems(node.Nodes[i], elapsed);
                 }
             }
+            this.mapData.ExecuteQueue();
         }
 
         private void ApplyMapEvents(IEnumerable<ItemEvent> itemEvents, object animator, string defaultAniName)
@@ -164,7 +181,7 @@ namespace WzComparerR2.MapRender
                     {
                         SlotName = ie.SlotName,
                         Animation = ie.Animation,
-                        MapEvent = this.mapData.Events.FirstOrDefault(me => me.Index == ie.ActionKey),
+                        MapEvent = this.mapData.Events.Where(me => ie.ActionKeys.Contains(me.Index)),
                         Rect = (animator as ISpineAnimator).GetBounds(ie.SlotName),
                     };
                 }).Where(data => data.MapEvent != null || !string.IsNullOrEmpty(data.Animation));
@@ -177,30 +194,46 @@ namespace WzComparerR2.MapRender
                     if (!string.IsNullOrEmpty(data.Animation))
                     {
                         var tmpMapEvent = new MapEvent(null, "SetAnimationOnceAndReturn", defaultAniName, data.Animation, null);
-                        InvokeMapEvent(animator as ISpineAnimator, tmpMapEvent);
+                        InvokeMapEvent(animator as ISpineAnimator, new List<MapEvent>() { tmpMapEvent });
                     }
-                    else InvokeMapEvent(animator as ISpineAnimator, data.MapEvent);
+                    else InvokeMapEvent(animator as ISpineAnimator, data.MapEvent.ToList());
                 }
             }
         }
 
-        private void InvokeMapEvent(ISpineAnimator spine, MapEvent mapEvent)
+        private void InvokeMapEvent(ISpineAnimator sender, List<MapEvent> mapEvents)
         {
-            if (spine != null && mapEvent != null)
+            if (sender != null)
             {
-                switch (mapEvent.Type)
+                foreach (var mapEvent in mapEvents)
                 {
-                    case MapEventType.SetAnimationOnceAndReturn:
-                        if (spine.NextAnimationName.Count > 0)
-                        {
-                            return;
-                        }
-                        else
-                        {
-                            spine.SelectedAnimationName = mapEvent.ChangedAnimation;
-                            spine.NextAnimationName.Enqueue(mapEvent.DefaultAnimation);
-                        }
-                        break;
+                    if (mapEvent == null) continue;
+
+                    List<ISpineAnimator> targets = mapEvent.Tags == null ? new List<ISpineAnimator>() { sender as ISpineAnimator } :
+                        GetSceneContainers(this.mapData?.Scene)
+                        .SelectMany(container => container.Slots)
+                        .Where(sceneItem => sceneItem.Tags != null && sceneItem.Tags.Contains(mapEvent.Tags))
+                        .Select(sceneItem => (ISpineAnimator)((sceneItem as ObjItem)?.View?.Animator) ?? null)
+                        .Where(spine => spine != null)
+                        .Distinct()
+                        .ToList();
+                    switch (mapEvent.Type)
+                    {
+                        case MapEventType.SetAnimationOnceAndReturn:
+                            foreach (var spine in targets)
+                            {
+                                if (spine.NextAnimationName.Count > 0)
+                                {
+                                    return;
+                                }
+                                else
+                                {
+                                    spine.SelectedAnimationName = mapEvent.ChangedAnimation;
+                                    spine.NextAnimationName.Enqueue(mapEvent.DefaultAnimation);
+                                }
+                            }
+                            break;
+                    }
                 }
             }
         }
@@ -278,7 +311,29 @@ namespace WzComparerR2.MapRender
             this.ui.TopBar.Text = sb.ToString();
         }
 
-        private void OnSceneItemClick(SceneItem item)
+        private void UpdateMinimapIcons()
+        {
+            if (this.mapData == null) return;
+
+            this.ui.Minimap.Icons.RemoveAll(icon => icon.Tag == "mob");
+            foreach (var mob in this.mapData.Scene.Mobs)
+            {
+                var mobNode = PluginManager.FindWz(string.Format("Mob/{0:D7}.img/info", mob.ID));
+                if ((mobNode?.Nodes["minimap"].GetValueEx(0) ?? 0) != 0)
+                {
+                    var x = mob.X + mob.Controller.RelPos.X;
+                    var y = mob.Y + mob.Controller.RelPos.Y;
+                    this.ui.Minimap.Icons.Add(new UIMinimap2.MapIcon()
+                    {
+                        IconType = UIMinimap2.IconType.Another,
+                        WorldPosition = new EmptyKeys.UserInterface.PointF(x, y),
+                        Tag = "mob"
+                    });
+                }
+            }
+        }
+
+        private void OnSceneItemClick(SceneItem item, bool ctrlOn)
         {
             if (item is PortalItem)
             {
@@ -293,10 +348,8 @@ namespace WzComparerR2.MapRender
                 }
                 else if (portal.GraphTargetMap.Count > 1)
                 {
-                    this.ui.Teleport.Sl = this.StringLinker;
-                    this.ui.Teleport.CmbMaps.ItemsSource = portal.GraphTargetMap.ToList();
-                    this.ui.Teleport.CmbMaps.SelectedIndex = 0;
-                    this.ui.Teleport.Toggle();
+                    this.ui.Teleport.LoadContents(this.StringLinker, portal.GraphTargetMap);
+                    this.ui.Teleport.Show();
                 }
                 else if (portal.IsSpring && (portal.ToName == null || portal.ToName == ""))
                 {
@@ -317,13 +370,7 @@ namespace WzComparerR2.MapRender
                 var reactor = (ReactorItem)item;
                 reactor.View.NextStage = reactor.View.Stage + 1;
 
-                Music soundEff = LoadSoundEff($@"Sound\Reactor.img\{reactor.ID}\{reactor.View.Stage}");
-                if (soundEff != null)
-                {
-                    soundEff.Volume = bgm.Volume;
-                    soundEff.Play();
-                    soundEff.soundEffDispose();
-                }
+                PlaySoundEff($@"Sound\Reactor.img\{reactor.ID}\{reactor.View.Stage}");
             }
             else if (item is LifeItem)
             {
@@ -333,34 +380,28 @@ namespace WzComparerR2.MapRender
                     var ani = life.View.Animator as StateMachineAnimator;
                     var soundEffPath = $@"Sound\Mob.img\{life.ID:D7}\";
 
-                    if (ani.Data.SelectedState != "die1" && ani.Data.SelectedState != "regen")
+                    if (life.Controller.CanHit && !ctrlOn)
                     {
-                        if (life.View.Time % 4 == 0)
+                        life.Controller.DoDamage();
+                        if (life.Controller.DecideDie())
                         {
-                            if (ani.Data.States.Contains("die1"))
-                            {
-                                ani.SetAnimation("die1");
-                            }
-
+                            life.Controller.SetDied();
                             soundEffPath += "Die";
                         }
                         else
                         {
-                            if (ani.Data.States.Contains("hit1"))
-                            {
-                                ani.SetAnimation("hit1");
-                            }
-
+                            life.Controller.SetHit();
                             soundEffPath += "Damage";
                         }
 
-                        Music soundEff = LoadSoundEff(soundEffPath);
-                        if (soundEff != null)
-                        {
-                            soundEff.Volume = bgm.Volume;
-                            soundEff.Play();
-                            soundEff.soundEffDispose();
-                        }
+                        PlaySoundEff(soundEffPath);
+                    }
+                    else if (life.Controller.CanAttack && ctrlOn)
+                    {
+                        soundEffPath += life.Controller.DecideAttack().Replace("attack", "Attack").Replace("skill", "Skill");
+                        life.Controller.SetAttack();
+
+                        PlaySoundEff(soundEffPath);
                     }
                 }
             }
@@ -462,6 +503,18 @@ namespace WzComparerR2.MapRender
                     {
                         lines.Add(new Point(fh.X1, fh.Y1));
                         lines.Add(new Point(fh.X2, fh.Y2));
+                        if (showFootholdBoundary)
+                        {
+                            lines.Add(new Point(fh.X1, fh.Y1));
+                            lines.Add(new Point(fh.X1, fh.Y1 + 10));
+                            lines.Add(new Point(fh.X1, fh.Y1 + 10));
+                            lines.Add(new Point(fh.X1 - 5, fh.Y1 + 5));
+
+                            lines.Add(new Point(fh.X2, fh.Y2));
+                            lines.Add(new Point(fh.X2, fh.Y2 - 10));
+                            lines.Add(new Point(fh.X2, fh.Y2 - 10));
+                            lines.Add(new Point(fh.X2 + 5, fh.Y2 - 5));
+                        }
                     }
                 }
 
@@ -561,9 +614,9 @@ namespace WzComparerR2.MapRender
                     var barScaler = 0;
                     foreach (var item in portalList)
                     {
-                        var angle = Math.Atan2(item.VerticalImpact, item.HorizontalImpact);
-                        var sin = Math.Sin(angle);
-                        var cos = Math.Cos(angle);
+                        double invLen = item.InverseImpactLength;
+                        double sin = item.VerticalImpact * item.InverseImpactLength;
+                        double cos = item.HorizontalImpact * item.InverseImpactLength;
                         Point arrow1 = new Point((int)((cos + sin) * -arrowScaler), (int)((cos - sin) * -arrowScaler));
                         Point arrow2 = new Point((int)((sin - cos) * arrowScaler), (int)((cos + sin) * arrowScaler));
 
@@ -648,7 +701,7 @@ namespace WzComparerR2.MapRender
                 foreach (var rect in rectList)
                 {
                     var meshItem = this.batcher.MeshPop();
-                    meshItem.RenderObject = new RectMesh(rect, color, 1);
+                    meshItem.RenderObject = new RectMesh(rect, color, 1, alpha: 0.3);
                     this.batcher.Draw(meshItem);
                     this.batcher.MeshPush(meshItem);
                 }
@@ -665,11 +718,11 @@ namespace WzComparerR2.MapRender
 
                     if (lt != Point.Zero || rb != Point.Zero)
                     {
-                        var x = mob.X;
-                        var y = mob.Cy;
+                        var x = (int)mob.Controller.IntCurPos.X;
+                        var y = (int)mob.Controller.IntCurPos.Y;
                         Rectangle rect = new Rectangle(x + lt.X, y + lt.Y, rb.X - lt.X, rb.Y - lt.Y);
 
-                        if (mob.Flip)
+                        if (mob.Controller.FlipX)
                         {
                             rect.X = 2 * x - rect.X - rect.Width;
                         }
@@ -681,7 +734,7 @@ namespace WzComparerR2.MapRender
                 foreach (var rect in rectList)
                 {
                     var meshItem = this.batcher.MeshPop();
-                    meshItem.RenderObject = new RectMesh(rect, color, 1);
+                    meshItem.RenderObject = new RectMesh(rect, color, 1, alpha: 0.3);
                     this.batcher.Draw(meshItem);
                     this.batcher.MeshPush(meshItem);
                 }
@@ -735,7 +788,7 @@ namespace WzComparerR2.MapRender
 
                             //绘制怪物名称
                             mesh = batcher.MeshPop();
-                            mesh.Position = new Vector2(life.X, life.Cy + 4);
+                            mesh.Position = life.Controller.IntCurPos + new Vector2(0, 4);
                             mesh.RenderObject = new TextMesh()
                             {
                                 Align = Alignment.Center,
@@ -965,6 +1018,14 @@ namespace WzComparerR2.MapRender
                             }
                         }
                     }
+                    else if (item is LifeItem life && life.Type == LifeItem.LifeType.Mob)
+                    {
+                        var meshLifeEffect = GetMesh(item, effectAni: true);
+                        if (meshLifeEffect != null)
+                        {
+                            kvList.Add(new KeyValuePair<SceneItem, MeshItem>(item, meshLifeEffect));
+                        }
+                    }
                 }
                 kvList.Sort((kv1, kv2) => kv1.Value.CompareTo(kv2.Value));
                 foreach (var kv in kvList)
@@ -976,7 +1037,7 @@ namespace WzComparerR2.MapRender
             kvList.Clear();
         }
 
-        private MeshItem GetMesh(SceneItem item)
+        private MeshItem GetMesh(SceneItem item, bool effectAni = false)
         {
             if (item.Tags != null && item.Tags.Any(tag => !patchVisibility.IsTagVisible(tag)))
             {
@@ -1022,7 +1083,7 @@ namespace WzComparerR2.MapRender
                     if ((life.Type == LifeItem.LifeType.Mob && patchVisibility.MobVisible)
                         || (life.Type == LifeItem.LifeType.Npc && patchVisibility.NpcVisible))
                     {
-                        return GetMeshLife(life);
+                        return GetMeshLife(life, effectAni: effectAni);
                     }
                     break;
 
@@ -1204,17 +1265,17 @@ namespace WzComparerR2.MapRender
             return mesh;
         }
 
-        private MeshItem GetMeshLife(LifeItem life)
+        private MeshItem GetMeshLife(LifeItem life, bool effectAni = false)
         {
-            var renderObj = GetRenderObject(life.View.Animator);
+            var renderObj = GetRenderObject(life.View.Animator, effectAni: effectAni);
             if (renderObj == null)
             {
                 return null;
             }
             var mesh = batcher.MeshPop();
             mesh.RenderObject = renderObj;
-            mesh.Position = new Vector2(life.X, life.Cy);
-            mesh.FlipX = life.Flip;
+            mesh.Position = life.Controller.IntCurPos;
+            mesh.FlipX = life.Controller.FlipX;
             mesh.Z0 = ((renderObj as Frame)?.Z ?? 0);
             mesh.Z1 = life.Index;
             return mesh;
@@ -1295,7 +1356,7 @@ namespace WzComparerR2.MapRender
             return mesh;
         }
 
-        private object GetRenderObject(object animator, bool flip = false, int alpha = 255)
+        private object GetRenderObject(object animator, bool flip = false, int alpha = 255, bool effectAni = false)
         {
             if (animator is FrameAnimator frameAni)
             {
@@ -1335,7 +1396,7 @@ namespace WzComparerR2.MapRender
             }
             else if (animator is StateMachineAnimator smAni)
             {
-                return smAni.Data.GetMesh();
+                return effectAni ? smAni.EffectData?.GetMesh() :smAni.Data.GetMesh();
             }
             else if (animator is MsCustomSprite msCustomSprite)
             {
@@ -1422,6 +1483,22 @@ namespace WzComparerR2.MapRender
                     waterFront.Factor2 = 1f;
                     break;
             }
+        }
+
+        private void PlaySoundEff(string path)
+        {
+            Music soundEff = LoadSoundEff(path);
+            if (soundEff != null)
+            {
+                soundEff.Volume = bgm?.Volume ?? 1;
+                soundEff.Play();
+                soundEff.soundEffDispose();
+            }
+        }
+
+        private void LoadMobResource(LifeItem mob)
+        {
+            this.mapData.LoadResource(resLoader, mob);
         }
     }
 }
