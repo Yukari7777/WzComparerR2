@@ -5054,17 +5054,16 @@ namespace WzComparerR2
 
         private async void MainForm_Shown(object sender, EventArgs e)
         {
+            //Yukari7777 personal feature: open recent document on startup
+            if (WcR2Config.Default.RecentDocuments.Count > 0)
+            {
+                openWz(WcR2Config.Default.RecentDocuments[0]);
+            }
             //Automatic Update Check
             if (WcR2Config.Default.AutoDetectUpdate)
             {
                 bool isUpdateRequired = await AutomaticCheckUpdate();
                 if (isUpdateRequired) new FrmUpdater().ShowDialog();
-                
-                //Yukari7777 personal feature: open recent document on startup
-                if (WcR2Config.Default.RecentDocuments.Count > 0)
-                {
-                    openWz(WcR2Config.Default.RecentDocuments[0]);
-                }
             }
         }
 
