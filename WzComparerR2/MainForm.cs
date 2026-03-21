@@ -5060,7 +5060,8 @@ namespace WzComparerR2
                 await this.AutomaticCheckUpdate();
             }
         }
-        private async void OpenRecent(object sender, EventArgs e)
+
+        private void OpenRecent(object sender, EventArgs e)
         {
             if (WcR2Config.Default.RecentDocuments.Count > 0)
             {
