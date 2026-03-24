@@ -461,6 +461,59 @@ namespace WzComparerR2
                 }
             }
 
+            static bool LooksLikePartialSkillCanvasPath(string[] path)
+            {
+                return path != null
+                    && path.Length >= 4
+                    && string.Equals(path[0], "Skill", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(path[1], "_Canvas", StringComparison.OrdinalIgnoreCase)
+                    && path[2].EndsWith(".img", StringComparison.OrdinalIgnoreCase);
+            }
+
+            static Wz_Node FindPartialSkillCanvasMatch(Wz_Node wzFileNode, string[] path)
+            {
+                if (wzFileNode == null || !LooksLikePartialSkillCanvasPath(path))
+                {
+                    return null;
+                }
+
+                Wz_Node canvasNode = wzFileNode.Nodes["_Canvas"];
+                if (canvasNode == null || canvasNode.Nodes.Count == 0)
+                {
+                    return null;
+                }
+
+                string[] remainingPath = path.Skip(3).ToArray();
+                if (remainingPath.Length == 0)
+                {
+                    return null;
+                }
+
+                Wz_Node matchedNode = null;
+                foreach (Wz_Node imgNode in canvasNode.Nodes)
+                {
+                    if (!imgNode.Text.EndsWith(".img", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    Wz_Node candidate = imgNode.FindNodeByPath(true, remainingPath);
+                    if (candidate == null)
+                    {
+                        continue;
+                    }
+
+                    if (matchedNode != null && !ReferenceEquals(matchedNode, candidate))
+                    {
+                        return null;
+                    }
+
+                    matchedNode = candidate;
+                }
+
+                return matchedNode;
+            }
+
             if (fullPath == null || fullPath.Length <= 1)
             {
                 if (e.WzType != Wz_Type.Unknown && preSearch.Count > 0) //返回wzFile
@@ -492,6 +545,14 @@ namespace WzComparerR2
                 if (searchNode != null)
                 {
                     e.WzNode = searchNode;
+                    e.WzFile = wzFileNode.Value as Wz_File;
+                    return;
+                }
+
+                Wz_Node fallbackNode = FindPartialSkillCanvasMatch(wzFileNode, fullPath);
+                if (fallbackNode != null)
+                {
+                    e.WzNode = fallbackNode;
                     e.WzFile = wzFileNode.Value as Wz_File;
                     return;
                 }
