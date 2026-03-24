@@ -409,6 +409,16 @@ namespace WzComparerR2
             }
 
             List<Wz_Node> preSearch = new List<Wz_Node>();
+            HashSet<Wz_Node> preSearchSet = new HashSet<Wz_Node>();
+
+            void AddPreSearchNode(Wz_Node node)
+            {
+                if (node != null && preSearchSet.Add(node))
+                {
+                    preSearch.Add(node);
+                }
+            }
+
             if (e.WzType != Wz_Type.Unknown) //用wztype作为输入参数
             {
                 IEnumerable<Wz_Structure> preSearchWz = e.WzFile?.WzStructure != null ?
@@ -426,7 +436,7 @@ namespace WzComparerR2
                             {
                                 continue;
                             }
-                            preSearch.Add(wz_f.Node);
+                            AddPreSearchNode(wz_f.Node);
                             find = true;
                             //e.WzFile = wz_f;
                         }
@@ -434,7 +444,7 @@ namespace WzComparerR2
                             && wz_f.Type == Wz_Type.Unknown
                             && LooksLikeSkillRootNode(wz_f.Node))
                         {
-                            preSearch.Add(wz_f.Node);
+                            AddPreSearchNode(wz_f.Node);
                             find = true;
                         }
                         if (wz_f.Type == Wz_Type.Base)
@@ -454,7 +464,7 @@ namespace WzComparerR2
 
                             if ((exactMatch || skillLikeMatch) && node.Nodes.Count > 0)
                             {
-                                preSearch.Add(node);
+                                AddPreSearchNode(node);
                             }
                         }
                     }
@@ -547,6 +557,21 @@ namespace WzComparerR2
                     e.WzNode = searchNode;
                     e.WzFile = wzFileNode.Value as Wz_File;
                     return;
+                }
+            }
+
+            HashSet<Wz_Node> partialCanvasRoots = new HashSet<Wz_Node>();
+            foreach (var wzFileNode in preSearch)
+            {
+                if (!partialCanvasRoots.Add(wzFileNode))
+                {
+                    continue;
+                }
+
+                Wz_Node canvasNode = wzFileNode.Nodes["_Canvas"];
+                if (canvasNode == null || canvasNode.Nodes.Count <= 0)
+                {
+                    continue;
                 }
 
                 Wz_Node fallbackNode = FindPartialSkillCanvasMatch(wzFileNode, fullPath);
@@ -1740,6 +1765,9 @@ namespace WzComparerR2
             }
             else if (selectedNode.Value is Wz_File wzFile)
             {
+                bool isEmptyPkg2FileNode = wzFile.Header.Signature == Wz_Header.PKG2
+                    && selectedNode.Nodes.Count == 0;
+
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "File Name", wzFile.Header.FileName }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "File Size", wzFile.Header.FileSize + " bytes" }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Signature", wzFile.Header.Signature }));
@@ -1752,8 +1780,7 @@ namespace WzComparerR2
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Hash Version", wzFile.Header.HashVersion.ToString() }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Version Checked", wzFile.Header.VersionChecked.ToString() }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Wz Type", wzFile.IsSubDir ? "SubDir" : wzFile.Type.ToString() }));
-                if (wzFile.Header.Signature == Wz_Header.PKG2
-                    && selectedNode.Nodes.Count == 0
+                if (isEmptyPkg2FileNode
                     && wzFile.TryGetPkg2UnsupportedReason(out string unsupportedReason))
                 {
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[]
@@ -1763,22 +1790,13 @@ namespace WzComparerR2
                     }));
                 }
 
-                if (wzFile.FileStream != null)
+                if (wzFile.FileStream != null && !isEmptyPkg2FileNode)
                 {
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[]
                     {
                         "Payload Probe",
                         BuildWzFilePayloadProbeText(wzFile)
                     }));
-
-                    if (wzFile.Header.Signature == Wz_Header.PKG2 && wzFile.Node?.Nodes.Count == 0)
-                    {
-                        listViewExWzDetail.Items.Add(new ListViewItem(new string[]
-                        {
-                            "PKG2 Offset Candidates",
-                            wzFile.BuildPkg2OffsetCandidateReport()
-                        }));
-                    }
                 }
 
                 foreach (Wz_File subFile in wzFile.MergedWzFiles)
@@ -1790,13 +1808,9 @@ namespace WzComparerR2
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Version", subFile.Header.WzVersion.ToString() }));
                 }
 
-                if (ShouldGenerateTreeDebug(wzFile))
+                if (!isEmptyPkg2FileNode && ShouldGenerateTreeDebug(wzFile))
                 {
                     string debugText = BuildWzTreeDebugText(wzFile, selectedNode);
-                    if (wzFile.Header.Signature == Wz_Header.PKG2 && selectedNode.Nodes.Count == 0)
-                    {
-                        debugText = wzFile.BuildPkg2OffsetCandidateReport() + "\r\n\r\n" + debugText;
-                    }
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[]
                     {
                         "Tree Debug",

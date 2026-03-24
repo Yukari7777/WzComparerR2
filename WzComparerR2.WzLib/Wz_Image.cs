@@ -29,6 +29,8 @@ namespace WzComparerR2.WzLib
         private bool extr;
         private bool chec;
         private bool checEnc;
+        private bool failedExtract;
+        private Exception lastExtractException;
         private Stream stream;
         private Wz_CryptoKeyType encType;
 
@@ -76,147 +78,173 @@ namespace WzComparerR2.WzLib
 
         public bool TryExtract(out Exception e)
         {
-            if (!this.extr)
+            if (this.extr)
             {
-                if (this.stream == null)
-                {
-                    this.stream = this.OpenRead();
-                }
+                e = null;
+                return true;
+            }
 
-                bool disabledChec = this.WzFile?.WzStructure?.ImgCheckDisabled ?? false;
-                if (!disabledChec && !this.chec)
-                {
-                    if (this.Checksum != this.CalcCheckSum(this.stream))
-                    {
-                        e = new ArgumentException("checksum error");
-                        return false;
-                    }
-                    this.chec = true;
-                }
+            if (this.failedExtract)
+            {
+                e = this.lastExtractException;
+                return false;
+            }
 
-                if (RawTextReader.PreCheck(this))
+            if (this.stream == null)
+            {
+                this.stream = this.OpenRead();
+            }
+
+            bool disabledChec = this.WzFile?.WzStructure?.ImgCheckDisabled ?? false;
+            if (!disabledChec && !this.chec)
+            {
+                if (this.Checksum != this.CalcCheckSum(this.stream))
                 {
-                    try
+                    e = new ArgumentException("checksum error");
+                    this.RecordExtractFailure(e);
+                    return false;
+                }
+                this.chec = true;
+            }
+
+            if (RawTextReader.PreCheck(this))
+            {
+                try
+                {
+                    lock (this.WzFile.ReadLock)
                     {
-                        lock (this.WzFile.ReadLock)
-                        {
-                            this.stream.Position = 0;
-                            var reader = new WzStreamReader(this.stream);
-                            RawTextReader.ExtractImg(reader, this.Node);
-                            this.extr = true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        e = ex;
-                        this.Unextract();
-                        return false;
+                        this.stream.Position = 0;
+                        var reader = new WzStreamReader(this.stream);
+                        RawTextReader.ExtractImg(reader, this.Node);
+                        this.extr = true;
                     }
                 }
-                else if (TextImageReaderV1.PreCheck(this.stream))
+                catch (Exception ex)
                 {
-                    try
+                    e = ex;
+                    this.RecordExtractFailure(ex);
+                    return false;
+                }
+            }
+            else if (TextImageReaderV1.PreCheck(this.stream))
+            {
+                try
+                {
+                    lock (this.WzFile.ReadLock)
                     {
-                        lock (this.WzFile.ReadLock)
-                        {
-                            this.stream.Position = 0;
-                            var reader = new WzStreamReader(this.stream);
-                            TextImageReaderV1.ExtractImg(reader, this.Node);
-                            this.extr = true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        e = ex;
-                        this.Unextract();
-                        return false;
+                        this.stream.Position = 0;
+                        var reader = new WzStreamReader(this.stream);
+                        TextImageReaderV1.ExtractImg(reader, this.Node);
+                        this.extr = true;
                     }
                 }
-                else if (TextImageReaderV2.PreCheck(this.stream))
+                catch (Exception ex)
                 {
-                    try
+                    e = ex;
+                    this.RecordExtractFailure(ex);
+                    return false;
+                }
+            }
+            else if (TextImageReaderV2.PreCheck(this.stream))
+            {
+                try
+                {
+                    lock (this.WzFile.ReadLock)
                     {
-                        lock (this.WzFile.ReadLock)
-                        {
-                            this.stream.Position = 0;
-                            var reader = new WzStreamReader(this.stream);
-                            TextImageReaderV2.ExtractImg(reader, this.Node);
-                            this.extr = true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        e = ex;
-                        this.Unextract();
-                        return false;
+                        this.stream.Position = 0;
+                        var reader = new WzStreamReader(this.stream);
+                        TextImageReaderV2.ExtractImg(reader, this.Node);
+                        this.extr = true;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    if (!this.checEnc)
+                    e = ex;
+                    this.RecordExtractFailure(ex);
+                    return false;
+                }
+            }
+            else
+            {
+                if (!this.checEnc)
+                {
+                    if (!this.IsLuaImage)
                     {
-                        if (!this.IsLuaImage)
+                        try
                         {
-                            try
+                            this.TryDetectEnc();
+                            if (!this.checEnc)
                             {
-                                this.TryDetectEnc();
-                                if (!this.checEnc)
-                                {
-                                    e = new InvalidDataException(this.BuildBinaryDetectionFailureMessage());
-                                    return false;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                e = ex;
-                                this.Unextract();
+                                e = new InvalidDataException(this.BuildBinaryDetectionFailureMessage());
+                                this.RecordExtractFailure(e);
                                 return false;
                             }
                         }
-                    }
-
-                    try
-                    {
-                        lock (this.WzFile.ReadLock)
+                        catch (Exception ex)
                         {
-                            var reader = new WzBinaryReader(this.stream, true);
+                            e = ex;
+                            this.RecordExtractFailure(ex);
+                            return false;
+                        }
+                    }
+                }
+
+                try
+                {
+                    lock (this.WzFile.ReadLock)
+                    {
+                        var reader = new WzBinaryReader(this.stream, true);
+                        reader.BaseStream.Position = 0;
+
+                        if (!this.IsLuaImage)
+                        {
+                            byte firstByte = reader.ReadByte();
                             reader.BaseStream.Position = 0;
 
-                            if (!this.IsLuaImage)
+                            if (firstByte != 0x73 && firstByte != 0x1B && this.TryExtractImplicitPropertyRoot(reader, this.Node))
                             {
-                                byte firstByte = reader.ReadByte();
-                                reader.BaseStream.Position = 0;
-
-                                if (firstByte != 0x73 && firstByte != 0x1B && this.TryExtractImplicitPropertyRoot(reader, this.Node))
-                                {
-                                    this.extr = true;
-                                }
-                                else
-                                {
-                                    ExtractImg(reader, this.Node);
-                                    this.extr = true;
-                                }
+                                this.extr = true;
                             }
                             else
                             {
-                                ExtractLua(reader);
+                                ExtractImg(reader, this.Node);
                                 this.extr = true;
                             }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        e = ex;
-                        this.Unextract();
-                        return false;
+                        else
+                        {
+                            ExtractLua(reader);
+                            this.extr = true;
+                        }
                     }
                 }
+                catch (Exception ex)
+                {
+                    e = ex;
+                    this.RecordExtractFailure(ex);
+                    return false;
+                }
             }
+
+            this.failedExtract = false;
+            this.lastExtractException = null;
             e = null;
             return true;
         }
 
         public void Unextract()
+        {
+            this.ClearExtractedState(clearFailureCache: true);
+        }
+
+        private void RecordExtractFailure(Exception ex)
+        {
+            this.failedExtract = true;
+            this.lastExtractException = ex;
+            this.ClearExtractedState(clearFailureCache: false);
+        }
+
+        private void ClearExtractedState(bool clearFailureCache)
         {
             this.extr = false;
             if (this.stream != null)
@@ -225,6 +253,12 @@ namespace WzComparerR2.WzLib
                 this.stream = null;
             }
             this.Node.Nodes.Clear();
+
+            if (clearFailureCache)
+            {
+                this.failedExtract = false;
+                this.lastExtractException = null;
+            }
         }
 
         public virtual unsafe int CalcCheckSum(Stream stream)
