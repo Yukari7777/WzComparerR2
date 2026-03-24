@@ -1681,9 +1681,44 @@ namespace WzComparerR2
             {
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "File Name", wzFile.Header.FileName }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "File Size", wzFile.Header.FileSize + " bytes" }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Signature", wzFile.Header.Signature }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Header Size", wzFile.Header.HeaderSize.ToString() }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Data Size", wzFile.Header.DataSize.ToString() }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Data Start Position", wzFile.Header.DataStartPosition.ToString() }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Dir End Position", wzFile.Header.DirEndPosition.ToString() }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Copyright", wzFile.Header.Copyright }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Version", wzFile.GetMergedVersion().ToString() }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Hash Version", wzFile.Header.HashVersion.ToString() }));
+                listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Version Checked", wzFile.Header.VersionChecked.ToString() }));
                 listViewExWzDetail.Items.Add(new ListViewItem(new string[] { "Wz Type", wzFile.IsSubDir ? "SubDir" : wzFile.Type.ToString() }));
+                if (wzFile.Header.Signature == Wz_Header.PKG2
+                    && selectedNode.Nodes.Count == 0
+                    && wzFile.TryGetPkg2UnsupportedReason(out string unsupportedReason))
+                {
+                    listViewExWzDetail.Items.Add(new ListViewItem(new string[]
+                    {
+                        "Load Status",
+                        unsupportedReason
+                    }));
+                }
+
+                if (wzFile.FileStream != null)
+                {
+                    listViewExWzDetail.Items.Add(new ListViewItem(new string[]
+                    {
+                        "Payload Probe",
+                        BuildWzFilePayloadProbeText(wzFile)
+                    }));
+
+                    if (wzFile.Header.Signature == Wz_Header.PKG2 && wzFile.Node?.Nodes.Count == 0)
+                    {
+                        listViewExWzDetail.Items.Add(new ListViewItem(new string[]
+                        {
+                            "PKG2 Offset Candidates",
+                            wzFile.BuildPkg2OffsetCandidateReport()
+                        }));
+                    }
+                }
 
                 foreach (Wz_File subFile in wzFile.MergedWzFiles)
                 {
@@ -1697,6 +1732,10 @@ namespace WzComparerR2
                 if (ShouldGenerateTreeDebug(wzFile))
                 {
                     string debugText = BuildWzTreeDebugText(wzFile, selectedNode);
+                    if (wzFile.Header.Signature == Wz_Header.PKG2 && selectedNode.Nodes.Count == 0)
+                    {
+                        debugText = wzFile.BuildPkg2OffsetCandidateReport() + "\r\n\r\n" + debugText;
+                    }
                     listViewExWzDetail.Items.Add(new ListViewItem(new string[]
                     {
                         "Tree Debug",
@@ -1945,6 +1984,12 @@ namespace WzComparerR2
                 {
                     sb.Append("\r\n\r\n")
                         .Append(BuildWzFilePayloadProbeText(wzFile));
+
+                    if (wzFile.Header.Signature == Wz_Header.PKG2 && wzFile.Node?.Nodes.Count == 0)
+                    {
+                        sb.Append("\r\n\r\n")
+                            .Append(wzFile.BuildPkg2OffsetCandidateReport());
+                    }
                 }
 
                 sb.Append("\r\n\r\n");
@@ -2012,9 +2057,18 @@ namespace WzComparerR2
 
                     string hex = string.Join(" ", buffer.Select(b => b.ToString("X2")));
                     string ascii = new string(buffer.Select(b => 0x20 <= b && b <= 0x7E ? (char)b : '.').ToArray());
-                    return "file payload offset: " + payloadOffset
-                        + "\r\nfile payload first bytes: " + hex
-                        + "\r\nfile payload ascii: " + ascii;
+                    var sb = new StringBuilder();
+                    sb.Append("file payload offset: ").Append(payloadOffset)
+                        .Append("\r\nfile payload first bytes: ").Append(hex)
+                        .Append("\r\nfile payload ascii: ").Append(ascii);
+
+                    if (wzFile.Header.Signature == Wz_Header.PKG2 && wzFile.Node?.Nodes.Count == 0)
+                    {
+                        sb.Append("\r\n\r\n")
+                            .Append(wzFile.BuildPkg2OffsetCandidateReport());
+                    }
+
+                    return sb.ToString();
                 }
                 finally
                 {
@@ -4238,6 +4292,14 @@ namespace WzComparerR2
         private void advTree1_AfterNodeSelect_2(object sender, AdvTreeNodeEventArgs e)
         {
             lastSelectedTree = advTree1;
+            Wz_Node selectedNode = e.Node?.AsWzNode();
+            if (selectedNode?.Value is Wz_File wzFile
+                && wzFile.Header?.Signature == Wz_Header.PKG2
+                && selectedNode.Nodes.Count == 0)
+            {
+                return;
+            }
+
             if (buttonItemAutoQuickView.Checked)
             {
                 quickView(advTree1.SelectedNode);
