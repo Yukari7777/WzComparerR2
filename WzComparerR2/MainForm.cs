@@ -395,30 +395,7 @@ namespace WzComparerR2
                 fullPath = e.FullPath.Split('/', '\\');
                 e.WzType = Enum.TryParse<Wz_Type>(fullPath[0], true, out var wzType) ? wzType : Wz_Type.Unknown;
             }
-
-            static bool LooksLikeSkillRootNode(Wz_Node node)
-            {
-                return node != null
-                    && node.Nodes.Count > 0
-                    && (node.Text.StartsWith("Skill", StringComparison.OrdinalIgnoreCase)
-                        || node.Nodes["RidingSkillInfo.img"] != null
-                        || node.Nodes.Cast<Wz_Node>().Any(child =>
-                            child.Text.EndsWith(".img", StringComparison.OrdinalIgnoreCase)
-                            && (char.IsDigit(child.Text[0])
-                                || child.Text.StartsWith("Recipe_", StringComparison.OrdinalIgnoreCase))));
-            }
-
             List<Wz_Node> preSearch = new List<Wz_Node>();
-            HashSet<Wz_Node> preSearchSet = new HashSet<Wz_Node>();
-
-            void AddPreSearchNode(Wz_Node node)
-            {
-                if (node != null && preSearchSet.Add(node))
-                {
-                    preSearch.Add(node);
-                }
-            }
-
             if (e.WzType != Wz_Type.Unknown) //用wztype作为输入参数
             {
                 IEnumerable<Wz_Structure> preSearchWz = e.WzFile?.WzStructure != null ?
@@ -436,16 +413,9 @@ namespace WzComparerR2
                             {
                                 continue;
                             }
-                            AddPreSearchNode(wz_f.Node);
+                            preSearch.Add(wz_f.Node);
                             find = true;
                             //e.WzFile = wz_f;
-                        }
-                        else if (e.WzType == Wz_Type.Skill
-                            && wz_f.Type == Wz_Type.Unknown
-                            && LooksLikeSkillRootNode(wz_f.Node))
-                        {
-                            AddPreSearchNode(wz_f.Node);
-                            find = true;
                         }
                         if (wz_f.Type == Wz_Type.Base)
                         {
@@ -459,69 +429,13 @@ namespace WzComparerR2
                         string key = e.WzType.ToString();
                         foreach (Wz_Node node in baseWz.Node.Nodes)
                         {
-                            bool exactMatch = node.Text == key;
-                            bool skillLikeMatch = e.WzType == Wz_Type.Skill && LooksLikeSkillRootNode(node);
-
-                            if ((exactMatch || skillLikeMatch) && node.Nodes.Count > 0)
+                            if (node.Text == key && node.Nodes.Count > 0)
                             {
-                                AddPreSearchNode(node);
+                                preSearch.Add(node);
                             }
                         }
                     }
                 }
-            }
-
-            static bool LooksLikePartialSkillCanvasPath(string[] path)
-            {
-                return path != null
-                    && path.Length >= 4
-                    && string.Equals(path[0], "Skill", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(path[1], "_Canvas", StringComparison.OrdinalIgnoreCase)
-                    && path[2].EndsWith(".img", StringComparison.OrdinalIgnoreCase);
-            }
-
-            static Wz_Node FindPartialSkillCanvasMatch(Wz_Node wzFileNode, string[] path)
-            {
-                if (wzFileNode == null || !LooksLikePartialSkillCanvasPath(path))
-                {
-                    return null;
-                }
-
-                Wz_Node canvasNode = wzFileNode.Nodes["_Canvas"];
-                if (canvasNode == null || canvasNode.Nodes.Count == 0)
-                {
-                    return null;
-                }
-
-                string[] remainingPath = path.Skip(3).ToArray();
-                if (remainingPath.Length == 0)
-                {
-                    return null;
-                }
-
-                Wz_Node matchedNode = null;
-                foreach (Wz_Node imgNode in canvasNode.Nodes)
-                {
-                    if (!imgNode.Text.EndsWith(".img", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    Wz_Node candidate = imgNode.FindNodeByPath(true, remainingPath);
-                    if (candidate == null)
-                    {
-                        continue;
-                    }
-
-                    if (matchedNode != null && !ReferenceEquals(matchedNode, candidate))
-                    {
-                        return null;
-                    }
-
-                    matchedNode = candidate;
-                }
-
-                return matchedNode;
             }
 
             if (fullPath == null || fullPath.Length <= 1)
@@ -555,29 +469,6 @@ namespace WzComparerR2
                 if (searchNode != null)
                 {
                     e.WzNode = searchNode;
-                    e.WzFile = wzFileNode.Value as Wz_File;
-                    return;
-                }
-            }
-
-            HashSet<Wz_Node> partialCanvasRoots = new HashSet<Wz_Node>();
-            foreach (var wzFileNode in preSearch)
-            {
-                if (!partialCanvasRoots.Add(wzFileNode))
-                {
-                    continue;
-                }
-
-                Wz_Node canvasNode = wzFileNode.Nodes["_Canvas"];
-                if (canvasNode == null || canvasNode.Nodes.Count <= 0)
-                {
-                    continue;
-                }
-
-                Wz_Node fallbackNode = FindPartialSkillCanvasMatch(wzFileNode, fullPath);
-                if (fallbackNode != null)
-                {
-                    e.WzNode = fallbackNode;
                     e.WzFile = wzFileNode.Value as Wz_File;
                     return;
                 }
