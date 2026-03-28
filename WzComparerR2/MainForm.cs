@@ -3960,7 +3960,7 @@ namespace WzComparerR2
                     }
                     else if (Regex.IsMatch(skillNode.FullPathToFile, @"^Skill\d*\\\d+.img\\skill\\\d+$"))
                     {
-                        Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz, PluginManager.FindWz);
+                        Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz);
                         obj = skill;
                     }
                     break;
@@ -3975,28 +3975,28 @@ namespace WzComparerR2
                 case Wz_Type.Mob:
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
-                    var mob = Mob.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                    var mob = Mob.CreateFromNode(image.Node, PluginManager.FindWz);
                     obj = mob;
                     break;
 
                 case Wz_Type.Morph:
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
-                    var morph = Morph.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                    var morph = Morph.CreateFromNode(image.Node, PluginManager.FindWz);
                     obj = morph;
                     break;
 
                 case Wz_Type.Npc:
                     if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                         return;
-                    var npc = Npc.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz, getSpineDefaultFunc: this.pictureBoxEx1.GetSpineDefault);
+                    var npc = Npc.CreateFromNode(image.Node, PluginManager.FindWz, getSpineDefaultFunc: this.pictureBoxEx1.GetSpineDefault);
                     obj = npc;
                     break;
 
                 case Wz_Type.Quest:
                     Quest quest = null;
                     if (!((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract()))
-                        quest = Quest.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                        quest = Quest.CreateFromNode(image.Node, PluginManager.FindWz);
                     else if (quest == null)
                     {
                         Wz_Node questInfoNode = selectedNode;
@@ -4004,7 +4004,7 @@ namespace WzComparerR2
                         int questID = 0;
                         if (m.Success && Int32.TryParse(m.Result("$1"), out questID))
                         {
-                            quest = Quest.CreateFromNode(questInfoNode, PluginManager.FindWz, PluginManager.FindWz, fromInfoNode: questID);
+                            quest = Quest.CreateFromNode(questInfoNode, PluginManager.FindWz, fromInfoNode: questID);
                         }
                     }
                     obj = quest;
@@ -4024,7 +4024,7 @@ namespace WzComparerR2
                     {
                         if ((image = selectedNode.GetValue<Wz_Image>()) == null || !image.TryExtract())
                             return;
-                        Achievement achievement = Achievement.CreateFromNode(image.Node, PluginManager.FindWz, PluginManager.FindWz);
+                        Achievement achievement = Achievement.CreateFromNode(image.Node, PluginManager.FindWz);
                         obj = achievement;
                     }
                     break;
@@ -4269,6 +4269,49 @@ namespace WzComparerR2
             if (buttonItemCharItem.Checked)
                 this.charaSimCtrl.UIItem.Refresh();
             this.charaSimCtrl.UIItem.Visible = buttonItemCharItem.Checked;
+        }
+
+        private void btnWorldArchiveBrowser_Click(object sender, EventArgs e)
+        {
+            if (PluginManager.FindWz(Wz_Type.Base) == null)
+            {
+                ToastNotification.Show(this, $"오류: Base.wz를 먼저 열어주세요.", null, 2000, eToastGlowColor.Red, eToastPosition.TopCenter);
+                return;
+            }
+            if (openedWz.Count > 1)
+            {
+                ToastNotification.Show(this, $"오류: Base.wz가 둘 이상 열려 있습니다.", null, 4000, eToastGlowColor.Red, eToastPosition.TopCenter);
+                return;
+            }
+            Wz_Node etcWaNode = PluginManager.FindWz(Wz_Type.Etc)?.FindNodeByPath("worldArchive.img");
+            Wz_Node waUiNode = PluginManager.FindWz(Wz_Type.UI)?.FindNodeByPath("UIworldArchive.img");
+            if (etcWaNode == null || waUiNode == null)
+            {
+                ToastNotification.Show(this, $"오류: 클라이언트에서 월드 아카이브 정보를 찾을 수 없습니다.", null, 2000, eToastGlowColor.Red, eToastPosition.TopCenter);
+                return;
+            }
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FrmWorldArchiveBrowser && !form.IsDisposed)
+                {
+                    form.Show();
+                    form.BringToFront();
+                    return;
+                }
+            }
+            FrmWorldArchiveBrowser frmWorldArchiveBrowser = new FrmWorldArchiveBrowser(this);
+            frmWorldArchiveBrowser.SetStringLinker(this.stringLinker);
+            frmWorldArchiveBrowser.SetWzNodes(etcWaNode, waUiNode, PluginManager.FindWz(Wz_Type.Mob), PluginManager.FindWz(Wz_Type.Npc));
+            frmWorldArchiveBrowser.ResetState();
+            frmWorldArchiveBrowser.Show();
+        }
+
+        public void RedirectToNode(Wz_Node node)
+        {
+            if (OnSelectedWzNode(node))
+            {
+                tooltipQuickView.BringToFront();
+            }
         }
 
         private void buttonItemAddItem_Click(object sender, EventArgs e)
@@ -4891,7 +4934,7 @@ namespace WzComparerR2
                                     }
                                     skillName = sr.Name;
                                     labelX2.Text = string.Format("내보내는 중: {0} - {1}", j.Text, skillName);
-                                    Skill skill = Skill.CreateFromNode(j, PluginManager.FindWz, PluginManager.FindWz);
+                                    Skill skill = Skill.CreateFromNode(j, PluginManager.FindWz);
                                     if (skill != null)
                                     {
                                         skill.Level = skill.MaxLevel;
@@ -4940,7 +4983,7 @@ namespace WzComparerR2
                                             }
                                             skillName = sr.Name;
                                             labelX2.Text = string.Format("내보내는 중: {0} - {1}", skillNode.Text, skillName);
-                                            Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz, PluginManager.FindWz);
+                                            Skill skill = Skill.CreateFromNode(skillNode, PluginManager.FindWz);
                                             if (skill != null)
                                             {
                                                 skill.Level = skill.MaxLevel;
