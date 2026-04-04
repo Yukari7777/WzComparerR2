@@ -37,6 +37,34 @@ Clone repository with submodules.
 # Compile
 - vs2022 or higher/.net 8 SDK
 
+# CLI JSON Export
+- `WzComparerR2.CLI` is intended for automation that already knows which WZ path should be exported.
+- The CLI does **not** scan existing `.img.json` files or decide which dumps should be replaced.
+- The primary workflow is a stateful session that loads `Base.wz` once and then serves repeated exact-path export requests.
+- Supported v1 targets are exact image roots such as `Mob/8880450.img` and exact in-image subnodes such as `Mob/8880450.img/info`.
+
+One-shot export:
+
+```sh
+dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base.wz" --path "Mob/8880450.img" --output "D:/MyApp/public/wz/Mob/8880450.img.json"
+```
+
+Session mode:
+
+```sh
+dotnet run --project WzComparerR2.CLI -- session --base "D:/MapleStory/Data/Base.wz"
+```
+
+Session stdin protocol uses one JSON object per line:
+
+```json
+{"command":"export","path":"Mob/8880450.img","output":"D:/MyApp/public/wz/Mob/8880450.img.json"}
+{"command":"export","path":"Mob/8880450.img/info","output":"D:/MyApp/public/wz/Mob/8880450.info.json"}
+{"command":"quit"}
+```
+
+Responses are also emitted as single-line JSON objects so another application can detect success or failure without scraping human-readable text.
+
 # Credits and Acknowledgement
 - **Fiel** ([Southperry](http://www.southperry.net))  wz文件读取代码改造自WzExtract 以及WzPatcher
 - **Index** ([Exrpg](http://bbs.exrpg.com/space-uid-137285.html)) MapRender的原始代码 以及libgif

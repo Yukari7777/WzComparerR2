@@ -8,13 +8,10 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml;
 using static Microsoft.Xna.Framework.MathHelper;
 using Timer = System.Timers.Timer;
 using DevComponents.AdvTree;
@@ -2551,7 +2548,7 @@ namespace WzComparerR2
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsXml(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsXml(img, dlg.FileName, dir, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
                     }
@@ -2563,7 +2560,7 @@ namespace WzComparerR2
                 return;
             }
 
-            List<Wz_Image> images = EnumerateImages(selectedNode).ToList();
+            List<Wz_Image> images = WzDumpExporter.EnumerateImages(selectedNode).ToList();
             if (images.Count == 0)
             {
                 MessageBoxEx.Show("선택한 노드에 XML로 내보낼 img가 없습니다.");
@@ -2586,7 +2583,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".xml";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsXml(image, targetPath, exportRoot, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsXml(image, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         successCount++;
                     }
@@ -2666,7 +2663,7 @@ namespace WzComparerR2
                         dir = Directory.GetCurrentDirectory();
                     }
 
-                    if (TryExportImageAsJson(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsJson(img, dlg.FileName, dir, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
                     }
@@ -2678,7 +2675,7 @@ namespace WzComparerR2
                 return;
             }
 
-            List<Wz_Image> images = EnumerateImages(selectedNode).ToList();
+            List<Wz_Image> images = WzDumpExporter.EnumerateImages(selectedNode).ToList();
             if (images.Count == 0)
             {
                 MessageBoxEx.Show("선택한 노드에 JSON로 내보낼 img가 없습니다.");
@@ -2701,7 +2698,7 @@ namespace WzComparerR2
                 {
                     string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
                     string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (TryExportImageAsJson(image, targetPath, exportRoot, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsJson(image, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         successCount++;
                     }
@@ -2731,115 +2728,6 @@ namespace WzComparerR2
             }
         }
 
-        private static bool TryExportImageAsXml(Wz_Image image, string xmlPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
-        {
-            error = null;
-            try
-            {
-                if (!image.TryExtract(out var extractError))
-                {
-                    error = extractError;
-                    return false;
-                }
-
-                dumpOptions ??= DumpingOptions.CreateXmlDefaults();
-
-                string directory = Path.GetDirectoryName(xmlPath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                var settings = new XmlWriterSettings()
-                {
-                    CloseOutput = false,
-                    Indent = true,
-                    Encoding = Encoding.UTF8,
-                    CheckCharacters = true,
-                    NewLineChars = Environment.NewLine,
-                    NewLineOnAttributes = false,
-                };
-
-                using (var fs = new FileStream(xmlPath, FileMode.Create, FileAccess.Write))
-                using (var writer = XmlWriter.Create(fs, settings))
-                {
-                    writer.WriteStartDocument(true);
-                    image.Node.DumpAsXml(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
-                    writer.WriteEndDocument();
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex;
-                return false;
-            }
-        }
-
-        private static bool TryExportImageAsJson(Wz_Image image, string jsonPath, string exportRoot, DumpingOptions dumpOptions, out Exception error)
-        {
-            error = null;
-            try
-            {
-                if (!image.TryExtract(out var extractError))
-                {
-                    error = extractError;
-                    return false;
-                }
-
-                dumpOptions ??= DumpingOptions.CreateJsonDefaults();
-
-                string directory = Path.GetDirectoryName(jsonPath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                var jsonWriterOptions = new JsonWriterOptions()
-                {
-                    Indented = true,
-                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                    SkipValidation = false,
-                };
-
-                using (var fs = new FileStream(jsonPath, FileMode.Create, FileAccess.Write))
-                using (var writer = new Utf8JsonWriter(fs, jsonWriterOptions))
-                {
-                    image.Node.DumpAsJson(writer, exportRoot, dumpOptions.DumpRaw, dumpOptions.DumpExternal, dumpOptions.LeaveReference);
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex;
-                return false;
-            }
-        }
-
-        private static IEnumerable<Wz_Image> EnumerateImages(Wz_Node node)
-        {
-            if (node == null)
-            {
-                yield break;
-            }
-
-            Wz_Image image = node.GetValue<Wz_Image>();
-            if (image != null)
-            {
-                yield return image;
-                yield break;
-            }
-
-            foreach (var child in node.Nodes)
-            {
-                foreach (var childImage in EnumerateImages(child))
-                {
-                    yield return childImage;
-                }
-            }
-        }
         #endregion
 
         #region Tools菜单事件和方法

@@ -1,4 +1,4 @@
-namespace WzComparerR2
+namespace WzComparerR2.WzLib
 {
     public class DumpingOptions
     {
