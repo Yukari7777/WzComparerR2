@@ -1,9 +1,26 @@
 // app/wz-types.ts
 // WZ Primitives. Basically Lua table + custom meta
+// WCR2 raw dumps now emit metadata through WzJsonMetaKeys; the types below
+// describe the normalized shape after a parser maps those raw fields.
 const FileRef = 'string' as const // placeholder for external file reference
 export type WzVector = [x: number, y:number]
 export type WzConvex = WzVector[]
 export type WzNull = {} // expose key
+
+export const WzJsonMetaPrefix = '@' as const
+export const WzJsonMetaKeys = {
+  type: `${WzJsonMetaPrefix}type`,
+  value: `${WzJsonMetaPrefix}value`,
+  format: `${WzJsonMetaPrefix}format`,
+  scale: `${WzJsonMetaPrefix}scale`,
+  pages: `${WzJsonMetaPrefix}pages`,
+  length: `${WzJsonMetaPrefix}length`,
+  ms: `${WzJsonMetaPrefix}ms`,
+  channels: `${WzJsonMetaPrefix}channels`,
+  frequency: `${WzJsonMetaPrefix}frequency`,
+  points: `${WzJsonMetaPrefix}points`,
+  data: `${WzJsonMetaPrefix}data`,
+} as const
 
 export type WzUol = {
   type: 'uol'
@@ -39,7 +56,8 @@ export type WzPng = WzDir & {
   file?: typeof FileRef //_outlink should be parsed to this
 }
 
-//TODO: add meta from WCR2 if needed
+// Additional normalized fields can be added here if the parser materializes
+// more WCR2 metadata.
 export type WzSound = WzDir & {
   type: 'sound'
   file?: typeof FileRef
