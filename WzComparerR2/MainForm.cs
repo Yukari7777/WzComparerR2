@@ -1579,13 +1579,6 @@ namespace WzComparerR2
             Task.Run(() => openWz(path));
         }
 
-        private void OpenRecent(object sender, EventArgs e)
-        {
-            if (WcR2Config.Default.RecentDocuments.Count > 0)
-            {
-                openWz(WcR2Config.Default.RecentDocuments[0]);
-            }
-        }
         #endregion
 
         #region wzView和提取的事件和方法
@@ -5154,6 +5147,11 @@ namespace WzComparerR2
             if (WcR2Config.Default.AutoDetectUpdate)
             {
                 await this.AutomaticCheckUpdate();
+            }
+
+            if (WcR2Config.Default.AutoOpenLastWzFile && WcR2Config.Default.RecentDocuments.Count > 0)
+            {
+                openWz(WcR2Config.Default.RecentDocuments[0]);
             }
         }
 

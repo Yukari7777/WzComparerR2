@@ -52,6 +52,12 @@ namespace WzComparerR2
             set { chkAutoDetectUpdate.Checked = value; }
         }
 
+        public bool AutoOpenLastWzFile
+        {
+            get { return chkAutoOpenLastWzFile.Checked; }
+            set { chkAutoOpenLastWzFile.Checked = value; }
+        }
+
         public int DefaultWzCodePage
         {
             get
@@ -94,6 +100,7 @@ namespace WzComparerR2
             this.AutoDetectExtFiles = config.AutoDetectExtFiles;
             this.ImgCheckDisabled = config.ImgCheckDisabled;
             this.AutoDetectUpdate = config.AutoDetectUpdate;
+            this.AutoOpenLastWzFile = config.AutoOpenLastWzFile;
             this.NexonOpenAPIKey = config.NexonOpenAPIKey;
         }
 
@@ -105,6 +112,7 @@ namespace WzComparerR2
             config.AutoDetectExtFiles = this.AutoDetectExtFiles;
             config.ImgCheckDisabled = this.ImgCheckDisabled;
             config.AutoDetectUpdate = this.AutoDetectUpdate;
+            config.AutoOpenLastWzFile = this.AutoOpenLastWzFile;
             config.NexonOpenAPIKey = this.NexonOpenAPIKey;
         }
 

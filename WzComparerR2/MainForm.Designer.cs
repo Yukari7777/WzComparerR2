@@ -3489,7 +3489,6 @@
             this.Name = "MainForm";
             this.Text = "WzComparerR2";
             this.Shown += new System.EventHandler(MainForm_Shown);
-            this.Shown += new System.EventHandler(OpenRecent);
             this.ribbonControl1.ResumeLayout(false);
             this.ribbonControl1.PerformLayout();
             this.ribbonPanel1.ResumeLayout(false);

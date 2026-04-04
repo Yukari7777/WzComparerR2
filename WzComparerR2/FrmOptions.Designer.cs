@@ -44,6 +44,7 @@
             this.superTabItemAPIKey = new DevComponents.DotNetBar.SuperTabItem();
             this.chkWzSortByImgID = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.chkAutoDetectUpdate = new DevComponents.DotNetBar.Controls.CheckBoxX();
+            this.chkAutoOpenLastWzFile = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.chkImgCheckDisabled = new DevComponents.DotNetBar.Controls.CheckBoxX();
             this.labelXOpenAPIKey = new DevComponents.DotNetBar.LabelX();
             this.txtOpenAPIKey = new DevComponents.DotNetBar.Controls.TextBoxX();
@@ -156,6 +157,7 @@
             // 
             // superTabControlPanel1
             // 
+            this.superTabControlPanelMisc.Controls.Add(this.chkAutoOpenLastWzFile);
             this.superTabControlPanelMisc.Controls.Add(this.chkAutoDetectUpdate);
             this.superTabControlPanelMisc.Dock = System.Windows.Forms.DockStyle.Fill;
             this.superTabControlPanelMisc.Location = new System.Drawing.Point(82, 0);
@@ -285,6 +287,21 @@
             this.chkAutoDetectUpdate.TabIndex = 5;
             this.chkAutoDetectUpdate.Text = "업데이트 자동 확인";
             // 
+            // chkAutoOpenLastWzFile
+            // 
+            this.chkAutoOpenLastWzFile.AutoSize = true;
+            this.chkAutoOpenLastWzFile.BackColor = System.Drawing.Color.Transparent;
+            // 
+            // 
+            // 
+            this.chkAutoOpenLastWzFile.BackgroundStyle.CornerType = DevComponents.DotNetBar.eCornerType.Square;
+            this.chkAutoOpenLastWzFile.Location = new System.Drawing.Point(14, 37);
+            this.chkAutoOpenLastWzFile.Name = "chkAutoOpenLastWzFile";
+            this.chkAutoOpenLastWzFile.Size = new System.Drawing.Size(132, 18);
+            this.chkAutoOpenLastWzFile.Style = DevComponents.DotNetBar.eDotNetBarStyle.StyleManagerControlled;
+            this.chkAutoOpenLastWzFile.TabIndex = 6;
+            this.chkAutoOpenLastWzFile.Text = "마지막 파일 자동 열기";
+            // 
             // chkImgCheckDisabled
             // 
             this.chkImgCheckDisabled.AutoSize = true;
@@ -384,6 +401,7 @@
         private DevComponents.DotNetBar.Controls.CheckBoxX chkAutoCheckExtFiles;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkWzSortByImgID; 
         private DevComponents.DotNetBar.Controls.CheckBoxX chkAutoDetectUpdate;
+        private DevComponents.DotNetBar.Controls.CheckBoxX chkAutoOpenLastWzFile;
         private DevComponents.DotNetBar.Controls.CheckBoxX chkImgCheckDisabled;
         private DevComponents.DotNetBar.LabelX labelX2;
         private DevComponents.DotNetBar.LabelX labelXOpenAPIKey;

@@ -19,6 +19,7 @@ namespace WzComparerR2.Config
             this.SortWzOnOpened = true;
             this.AutoDetectExtFiles = true;
             this.AutoDetectUpdate = true;
+            this.AutoOpenLastWzFile = false;
             //this.EnableAutoUpdate = true;
         }
 
@@ -125,6 +126,13 @@ namespace WzComparerR2.Config
         {
             get { return (ConfigItem<bool>)this["autoDetectUpdate"]; }
             set { this["autoDetectUpdate"] = value; }
+        }
+
+        [ConfigurationProperty("autoOpenLastWzFile")]
+        public ConfigItem<bool> AutoOpenLastWzFile
+        {
+            get { return (ConfigItem<bool>)this["autoOpenLastWzFile"]; }
+            set { this["autoOpenLastWzFile"] = value; }
         }
 
         [ConfigurationProperty("nexonOpenAPIKey")]
