@@ -33,8 +33,8 @@ namespace WzComparerR2.WzLib
             return new DumpingOptions
             {
                 DumpRaw = false,
-                DumpExternal = true,
-                LeaveReference = true,
+                DumpExternal = false,
+                LeaveReference = false,
             };
         }
     }
