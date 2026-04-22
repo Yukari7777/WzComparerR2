@@ -569,27 +569,45 @@ namespace WzComparerR2.WzLib
             return wzImg;
         }
 
+        public static bool IsCanvasImage(this Wz_Node node)
+        {
+            string imagePath = node?.GetNodeWzImage()?.Node?.FullPathToFile;
+            return !string.IsNullOrEmpty(imagePath)
+                && (imagePath.StartsWith("_Canvas\\", StringComparison.OrdinalIgnoreCase)
+                    || imagePath.IndexOf("\\_Canvas\\", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer)
         {
-            DumpAsXml(node, writer, null, false, false, false, null);
+            DumpAsXml(node, writer, null, false, false, false, false, null);
         }
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, IList<string> filterTags)
         {
-            DumpAsXml(node, writer, null, false, false, false, filterTags);
+            DumpAsXml(node, writer, null, false, false, false, false, filterTags);
         }
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir)
         {
-            DumpAsXml(node, writer, dir, false, true, false, null);
+            DumpAsXml(node, writer, dir, false, true, false, false, null);
         }
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
         {
-            DumpAsXml(node, writer, dir, dumpRaw, dumpExt, leaveRef, null);
+            DumpAsXml(node, writer, dir, dumpRaw, dumpExt, leaveRef, false, null);
+        }
+
+        public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts)
+        {
+            DumpAsXml(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, null);
         }
 
         public static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, IList<string> filterTags)
+        {
+            DumpAsXml(node, writer, dir, dumpRaw, dumpExt, leaveRef, false, filterTags);
+        }
+
+        private static void DumpAsXml(this Wz_Node node, XmlWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts, IList<string> filterTags)
         {
             object value = node.Value;
 
@@ -610,6 +628,7 @@ namespace WzComparerR2.WzLib
             }
             else if (value is Wz_Png png)
             {
+                bool exportPngFiles = dumpExt && (!omitRedundantCanvasArtifacts || node.IsCanvasImage());
                 writer.WriteStartElement("png");
                 writer.WriteAttributeString("name", node.Text);
                 writer.WriteAttributeString("width", png.Width.ToString());
@@ -633,7 +652,7 @@ namespace WzComparerR2.WzLib
                         }
                     }
                 }
-                else if (dumpExt)
+                else if (exportPngFiles)
                 {
                     for (int i = 0; i < png.ActualPages; i++)
                     {
@@ -726,7 +745,7 @@ namespace WzComparerR2.WzLib
             //输出子节点
             foreach (var child in node.Nodes)
             {
-                DumpAsXml(child, writer, dir, dumpRaw, dumpExt, leaveRef, filterTags);
+                DumpAsXml(child, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, filterTags);
             }
 
             //结束标识
@@ -748,37 +767,43 @@ namespace WzComparerR2.WzLib
 
         public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir)
         {
-            DumpAsJson(node, writer, dir, false, false, false);
+            DumpAsJson(node, writer, dir, false, false, false, false);
         }
 
         public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
         {
+            DumpAsJson(node, writer, dir, dumpRaw, dumpExt, leaveRef, false);
+        }
+
+        public static void DumpAsJson(this Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts)
+        {
             writer.WriteStartObject();
-            WriteNodeProperty(node, writer, dir, dumpRaw, dumpExt, leaveRef);
+            WriteNodeProperty(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts);
             writer.WriteEndObject();
         }
 
-        private static void WriteNodeProperty(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
+        private static void WriteNodeProperty(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts)
         {
             writer.WritePropertyName(node.Text);
-            WriteNodeValue(node, writer, dir, dumpRaw, dumpExt, leaveRef);
+            WriteNodeValue(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts);
         }
 
-        private static void WriteNodeValue(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef)
+        private static void WriteNodeValue(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts)
         {
             object value = node.Value;
             bool hasChildren = node.Nodes.Count > 0;
 
             if (value == null || value is Wz_Image)
             {
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, null);
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, null);
                 return;
             }
 
             if (value is Wz_Png png)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                bool exportPngFiles = dumpExt && (!omitRedundantCanvasArtifacts || node.IsCanvasImage());
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "png");
                     if (!(png.Width == 1 && png.Height == 1))
@@ -799,7 +824,7 @@ namespace WzComparerR2.WzLib
                         WritePngRawData(writer, png);
                     }
                     
-                    if (dumpExt)
+                    if (exportPngFiles)
                     {
                         exportedFiles = ExportPng(node, png, dir);
                     }
@@ -814,7 +839,7 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Uol uol)
             {
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "uol");
                     writer.WriteString(JsonValueKey, uol.Uol);
@@ -824,7 +849,7 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Vector vector)
             {
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "vector");
                     writer.WriteString(JsonValueKey, $"{vector.X}, {vector.Y}");
@@ -835,7 +860,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_Sound sound)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "sound");
                     if (sound.DataLength > 0)
@@ -875,7 +900,7 @@ namespace WzComparerR2.WzLib
 
             if (value is Wz_Convex convex)
             {
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "convex");
                     writer.WritePropertyName(JsonPointsKey);
@@ -894,7 +919,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_RawData rawData)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "rawdata");
                     writer.WriteNumber(JsonLengthKey, rawData.Length);
@@ -919,7 +944,7 @@ namespace WzComparerR2.WzLib
             if (value is Wz_Video video)
             {
                 List<string> exportedFiles = null;
-                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+                WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
                 {
                     writer.WriteString(JsonTypeKey, "video");
                     writer.WriteNumber(JsonLengthKey, video.Length);
@@ -943,90 +968,90 @@ namespace WzComparerR2.WzLib
 
             if (value is string str)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteStringValue(str), () => writer.WriteString(JsonValueKey, str));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteStringValue(str), () => writer.WriteString(JsonValueKey, str));
                 return;
             }
 
             if (value is bool boolean)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteBooleanValue(boolean), () => writer.WriteBoolean(JsonValueKey, boolean));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteBooleanValue(boolean), () => writer.WriteBoolean(JsonValueKey, boolean));
                 return;
             }
 
             if (value is sbyte sb)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(sb), () => writer.WriteNumber(JsonValueKey, sb));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(sb), () => writer.WriteNumber(JsonValueKey, sb));
                 return;
             }
 
             if (value is byte b)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(b), () => writer.WriteNumber(JsonValueKey, b));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(b), () => writer.WriteNumber(JsonValueKey, b));
                 return;
             }
 
             if (value is short s)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(s), () => writer.WriteNumber(JsonValueKey, s));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(s), () => writer.WriteNumber(JsonValueKey, s));
                 return;
             }
 
             if (value is ushort us)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(us), () => writer.WriteNumber(JsonValueKey, us));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(us), () => writer.WriteNumber(JsonValueKey, us));
                 return;
             }
 
             if (value is int i)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(i), () => writer.WriteNumber(JsonValueKey, i));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(i), () => writer.WriteNumber(JsonValueKey, i));
                 return;
             }
 
             if (value is uint ui)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(ui), () => writer.WriteNumber(JsonValueKey, ui));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(ui), () => writer.WriteNumber(JsonValueKey, ui));
                 return;
             }
 
             if (value is long l)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(l), () => writer.WriteNumber(JsonValueKey, l));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(l), () => writer.WriteNumber(JsonValueKey, l));
                 return;
             }
 
             if (value is ulong ul)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(ul), () => writer.WriteNumber(JsonValueKey, ul));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(ul), () => writer.WriteNumber(JsonValueKey, ul));
                 return;
             }
 
             if (value is float f)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(f), () => writer.WriteNumber(JsonValueKey, f));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(f), () => writer.WriteNumber(JsonValueKey, f));
                 return;
             }
 
             if (value is double d)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(d), () => writer.WriteNumber(JsonValueKey, d));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(d), () => writer.WriteNumber(JsonValueKey, d));
                 return;
             }
 
             if (value is decimal dec)
             {
-                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, () => writer.WriteNumberValue(dec), () => writer.WriteNumber(JsonValueKey, dec));
+                WritePrimitive(node, writer, dir, hasChildren, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writer.WriteNumberValue(dec), () => writer.WriteNumber(JsonValueKey, dec));
                 return;
             }
 
-            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () =>
+            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () =>
             {
                 writer.WriteString(JsonTypeKey, value.GetType().Name.ToLowerInvariant());
                 writer.WriteString(JsonValueKey, value.ToString());
             });
         }
 
-        private static void WritePrimitive(Wz_Node node, Utf8JsonWriter writer, string dir, bool hasChildren, bool dumpRaw, bool dumpExt, bool leaveRef, Action writeValue, Action writeProperty)
+        private static void WritePrimitive(Wz_Node node, Utf8JsonWriter writer, string dir, bool hasChildren, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts, Action writeValue, Action writeProperty)
         {
             if (!hasChildren)
             {
@@ -1034,10 +1059,10 @@ namespace WzComparerR2.WzLib
                 return;
             }
 
-            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, () => writeProperty());
+            WriteNodeAsObject(node, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts, () => writeProperty());
         }
 
-        private static void WriteNodeAsObject(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, Action metadataWriter)
+        private static void WriteNodeAsObject(Wz_Node node, Utf8JsonWriter writer, string dir, bool dumpRaw, bool dumpExt, bool leaveRef, bool omitRedundantCanvasArtifacts, Action metadataWriter)
         {
             writer.WriteStartObject();
             metadataWriter?.Invoke();
@@ -1045,7 +1070,7 @@ namespace WzComparerR2.WzLib
             {
                 foreach (var child in node.Nodes)
                 {
-                    WriteNodeProperty(child, writer, dir, dumpRaw, dumpExt, leaveRef);
+                    WriteNodeProperty(child, writer, dir, dumpRaw, dumpExt, leaveRef, omitRedundantCanvasArtifacts);
                 }
             }
             writer.WriteEndObject();

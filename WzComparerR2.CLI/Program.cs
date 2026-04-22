@@ -24,6 +24,10 @@ namespace WzComparerR2.CLI
             "--no-dump-external",
             "--leave-reference",
             "--no-leave-reference",
+            "--omit-redundant-canvas-artifacts",
+            "--no-omit-redundant-canvas-artifacts",
+            "--preserve-full-path-for-single-image",
+            "--no-preserve-full-path-for-single-image",
         };
 
         private static int Main(string[] args)
@@ -313,6 +317,18 @@ namespace WzComparerR2.CLI
                 options.LeaveReference = leaveReference.GetBoolean();
             }
 
+            if (root.TryGetProperty("omitRedundantCanvasArtifacts", out var omitRedundantCanvasArtifacts)
+                && (omitRedundantCanvasArtifacts.ValueKind == JsonValueKind.True || omitRedundantCanvasArtifacts.ValueKind == JsonValueKind.False))
+            {
+                options.OmitRedundantCanvasArtifacts = omitRedundantCanvasArtifacts.GetBoolean();
+            }
+
+            if (root.TryGetProperty("preserveFullPathForSingleImage", out var preserveFullPathForSingleImage)
+                && (preserveFullPathForSingleImage.ValueKind == JsonValueKind.True || preserveFullPathForSingleImage.ValueKind == JsonValueKind.False))
+            {
+                options.PreserveFullPathForSingleImage = preserveFullPathForSingleImage.GetBoolean();
+            }
+
             return options;
         }
 
@@ -355,6 +371,8 @@ namespace WzComparerR2.CLI
             ApplyFlag(flags, "--dump-raw", "--no-dump-raw", value => options.DumpRaw = value);
             ApplyFlag(flags, "--dump-external", "--no-dump-external", value => options.DumpExternal = value);
             ApplyFlag(flags, "--leave-reference", "--no-leave-reference", value => options.LeaveReference = value);
+            ApplyFlag(flags, "--omit-redundant-canvas-artifacts", "--no-omit-redundant-canvas-artifacts", value => options.OmitRedundantCanvasArtifacts = value);
+            ApplyFlag(flags, "--preserve-full-path-for-single-image", "--no-preserve-full-path-for-single-image", value => options.PreserveFullPathForSingleImage = value);
             return options;
         }
 
@@ -412,10 +430,11 @@ namespace WzComparerR2.CLI
         {
             writer.WriteLine("Usage:");
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
-            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <file> [--dump-raw|--no-dump-raw] [--dump-external|--no-dump-external] [--leave-reference|--no-leave-reference]");
+            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <file-or-root> [--dump-raw|--no-dump-raw] [--dump-external|--no-dump-external] [--leave-reference|--no-leave-reference] [--omit-redundant-canvas-artifacts|--no-omit-redundant-canvas-artifacts] [--preserve-full-path-for-single-image|--no-preserve-full-path-for-single-image]");
             writer.WriteLine();
             writer.WriteLine("Session stdin protocol:");
             writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img\",\"output\":\"D:/MyApp/public/wz/Mob/8880450.img.json\"}");
+            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Skill/000.img\",\"output\":\"D:/MyApp/public/wz/Skill/000.img.json\",\"dumpExternal\":true,\"preserveFullPathForSingleImage\":true}");
             writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz/Mob/8880450.info.json\"}");
             writer.WriteLine("  {\"command\":\"quit\"}");
         }
@@ -474,8 +493,7 @@ namespace WzComparerR2.CLI
                         return false;
                     }
 
-                    string fullOutputPath = Path.GetFullPath(outputPath);
-                    string exportRoot = Path.GetDirectoryName(fullOutputPath);
+                    ResolveJsonExportPaths(resolvedNode.Node, outputPath, options, out string fullOutputPath, out string exportRoot);
                     return WzDumpExporter.TryExportNodeAsJson(resolvedNode.Node, fullOutputPath, exportRoot, options, out error);
                 }
                 finally
@@ -526,6 +544,75 @@ namespace WzComparerR2.CLI
                 }
 
                 structure.Load(sourcePath, true);
+            }
+
+            private static void ResolveJsonExportPaths(Wz_Node node, string outputPath, DumpingOptions options, out string fullOutputPath, out string exportRoot)
+            {
+                fullOutputPath = Path.GetFullPath(outputPath);
+                exportRoot = Path.GetDirectoryName(fullOutputPath);
+
+                if (options?.PreserveFullPathForSingleImage != true)
+                {
+                    return;
+                }
+
+                Wz_Image image = node?.GetValue<Wz_Image>();
+                if (image == null)
+                {
+                    return;
+                }
+
+                string relativeOutputPath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
+                if (TryInferExportRootFromPreservedOutput(fullOutputPath, relativeOutputPath, out string inferredExportRoot))
+                {
+                    exportRoot = inferredExportRoot;
+                    fullOutputPath = Path.Combine(exportRoot, relativeOutputPath);
+                    return;
+                }
+
+                if (LooksLikeDirectoryPath(outputPath))
+                {
+                    exportRoot = Path.GetFullPath(outputPath);
+                    fullOutputPath = Path.Combine(exportRoot, relativeOutputPath);
+                }
+            }
+
+            private static bool TryInferExportRootFromPreservedOutput(string fullOutputPath, string relativeOutputPath, out string exportRoot)
+            {
+                string suffix = Path.DirectorySeparatorChar + relativeOutputPath;
+                if (fullOutputPath.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    exportRoot = fullOutputPath.Substring(0, fullOutputPath.Length - suffix.Length);
+                    if (string.IsNullOrEmpty(exportRoot))
+                    {
+                        exportRoot = Path.GetPathRoot(fullOutputPath);
+                    }
+                    return !string.IsNullOrEmpty(exportRoot);
+                }
+
+                exportRoot = null;
+                return false;
+            }
+
+            private static bool LooksLikeDirectoryPath(string outputPath)
+            {
+                if (string.IsNullOrWhiteSpace(outputPath))
+                {
+                    return false;
+                }
+
+                if (outputPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                    || outputPath.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                if (Directory.Exists(outputPath))
+                {
+                    return true;
+                }
+
+                return !Path.HasExtension(outputPath);
             }
         }
     }

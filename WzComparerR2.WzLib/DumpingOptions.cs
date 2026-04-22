@@ -8,6 +8,10 @@ namespace WzComparerR2.WzLib
 
         public bool LeaveReference { get; set; }
 
+        public bool OmitRedundantCanvasArtifacts { get; set; }
+
+        public bool PreserveFullPathForSingleImage { get; set; }
+
         public DumpingOptions Clone()
         {
             return new DumpingOptions
@@ -15,6 +19,8 @@ namespace WzComparerR2.WzLib
                 DumpRaw = this.DumpRaw,
                 DumpExternal = this.DumpExternal,
                 LeaveReference = this.LeaveReference,
+                OmitRedundantCanvasArtifacts = this.OmitRedundantCanvasArtifacts,
+                PreserveFullPathForSingleImage = this.PreserveFullPathForSingleImage,
             };
         }
 
@@ -25,6 +31,8 @@ namespace WzComparerR2.WzLib
                 DumpRaw = false,
                 DumpExternal = true,
                 LeaveReference = true,
+                OmitRedundantCanvasArtifacts = false,
+                PreserveFullPathForSingleImage = false,
             };
         }
 
@@ -35,6 +43,8 @@ namespace WzComparerR2.WzLib
                 DumpRaw = false,
                 DumpExternal = false,
                 LeaveReference = false,
+                OmitRedundantCanvasArtifacts = false,
+                PreserveFullPathForSingleImage = false,
             };
         }
     }

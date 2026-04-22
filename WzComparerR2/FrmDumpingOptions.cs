@@ -10,6 +10,8 @@ namespace WzComparerR2
         private readonly CheckBox chkDumpRaw;
         private readonly CheckBox chkDumpExternal;
         private readonly CheckBox chkLeaveReference;
+        private readonly CheckBox chkOmitRedundantCanvasArtifacts;
+        private readonly CheckBox chkPreserveFullPathForSingleImage;
         private readonly Button btnOk;
         private readonly Button btnCancel;
 
@@ -27,7 +29,7 @@ namespace WzComparerR2
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.ShowInTaskbar = false;
-            this.ClientSize = new Size(360, 180);
+            this.ClientSize = new Size(360, 240);
 
             chkDumpRaw = new CheckBox()
             {
@@ -48,6 +50,20 @@ namespace WzComparerR2
                 AutoSize = true,
                 Text = "리소스 경로를 JSON/XML에 기록",
                 Location = new Point(20, 80),
+            };
+
+            chkOmitRedundantCanvasArtifacts = new CheckBox()
+            {
+                AutoSize = true,
+                Text = "_Canvas JSON과 일반 img의 PNG 파일 생략",
+                Location = new Point(20, 110),
+            };
+
+            chkPreserveFullPathForSingleImage = new CheckBox()
+            {
+                AutoSize = true,
+                Text = "전체 경로 유지",
+                Location = new Point(20, 140),
             };
 
             btnOk = new Button()
@@ -73,6 +89,8 @@ namespace WzComparerR2
                 chkDumpRaw,
                 chkDumpExternal,
                 chkLeaveReference,
+                chkOmitRedundantCanvasArtifacts,
+                chkPreserveFullPathForSingleImage,
                 btnOk,
                 btnCancel,
             });
@@ -83,6 +101,8 @@ namespace WzComparerR2
             chkDumpRaw.Checked = this.Options.DumpRaw;
             chkDumpExternal.Checked = this.Options.DumpExternal;
             chkLeaveReference.Checked = this.Options.LeaveReference;
+            chkOmitRedundantCanvasArtifacts.Checked = this.Options.OmitRedundantCanvasArtifacts;
+            chkPreserveFullPathForSingleImage.Checked = this.Options.PreserveFullPathForSingleImage;
 
             this.Text = "내보내기 옵션";
         }
@@ -98,6 +118,8 @@ namespace WzComparerR2
                     DumpRaw = chkDumpRaw.Checked,
                     DumpExternal = chkDumpExternal.Checked,
                     LeaveReference = chkLeaveReference.Checked,
+                    OmitRedundantCanvasArtifacts = chkOmitRedundantCanvasArtifacts.Checked,
+                    PreserveFullPathForSingleImage = chkPreserveFullPathForSingleImage.Checked,
                 };
             }
 

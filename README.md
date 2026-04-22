@@ -49,6 +49,10 @@ One-shot export:
 dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base.wz" --path "Mob/8880450.img" --output "D:/MyApp/public/wz/Mob/8880450.img.json"
 ```
 
+Use `--omit-redundant-canvas-artifacts` when you want to omit placeholder `_Canvas/*.img` dump files and suppress exported `.png` files for non-`_Canvas` images.
+
+Use `--preserve-full-path-for-single-image` when a single `.img` export should keep its full logical path. With this option, `--output` may be either the final preserved `.json` path or an export root directory.
+
 Session mode:
 
 ```sh
@@ -59,6 +63,8 @@ Session stdin protocol uses one JSON object per line:
 
 ```json
 {"command":"export","path":"Mob/8880450.img","output":"D:/MyApp/public/wz/Mob/8880450.img.json"}
+{"command":"export","path":"Skill/000.img","output":"D:/MyApp/public/wz/Skill/000.img.json","dumpExternal":true,"omitRedundantCanvasArtifacts":true,"preserveFullPathForSingleImage":true}
+{"command":"export","path":"Skill/MobSkill/100.img","output":"D:/MyApp/public/wz/Skill/MobSkill/100.img.json","omitRedundantCanvasArtifacts":true}
 {"command":"export","path":"Mob/8880450.img/info","output":"D:/MyApp/public/wz/Mob/8880450.info.json"}
 {"command":"quit"}
 ```

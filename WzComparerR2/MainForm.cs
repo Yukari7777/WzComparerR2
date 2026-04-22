@@ -2535,20 +2535,9 @@ namespace WzComparerR2
             Wz_Image img = selectedNode.GetValue<Wz_Image>();
             if (img != null)
             {
-                SaveFileDialog dlg = new SaveFileDialog();
-                string fname = img.Node.FullPathToFile.Replace('\\', '.');
-                dlg.DefaultExt = ".xml";
-                dlg.Filter = "XML (*.xml)|*.xml";
-                dlg.FileName = fname + ".xml";
-                if (dlg.ShowDialog() == DialogResult.OK)
+                if (TryGetSingleImageExportTargetPath(img, ".xml", dumpOptions, "XML 내보내기 폴더를 선택하세요.", out string targetPath, out string exportRoot))
                 {
-                    string dir = Path.GetDirectoryName(dlg.FileName);
-                    if (string.IsNullOrEmpty(dir))
-                    {
-                        dir = Directory.GetCurrentDirectory();
-                    }
-
-                    if (WzDumpExporter.TryExportImageAsXml(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsXml(img, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
                     }
@@ -2650,20 +2639,9 @@ namespace WzComparerR2
             Wz_Image img = selectedNode.GetValue<Wz_Image>();
             if (img != null)
             {
-                SaveFileDialog dlg = new SaveFileDialog();
-                string fname = img.Node.FullPathToFile.Replace('\\', '.');
-                dlg.DefaultExt = ".json";
-                dlg.Filter = "JSON (*.json)|*.json";
-                dlg.FileName = fname + ".json";
-                if (dlg.ShowDialog() == DialogResult.OK)
+                if (TryGetSingleImageExportTargetPath(img, ".json", dumpOptions, "JSON 내보내기 폴더를 선택하세요.", out string targetPath, out string exportRoot))
                 {
-                    string dir = Path.GetDirectoryName(dlg.FileName);
-                    if (string.IsNullOrEmpty(dir))
-                    {
-                        dir = Directory.GetCurrentDirectory();
-                    }
-
-                    if (WzDumpExporter.TryExportImageAsJson(img, dlg.FileName, dir, dumpOptions, out Exception error))
+                    if (WzDumpExporter.TryExportImageAsJson(img, targetPath, exportRoot, dumpOptions, out Exception error))
                     {
                         labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
                     }
@@ -2726,6 +2704,67 @@ namespace WzComparerR2
                     MessageBoxEx.Show("일부 항목을 내보내지 못했습니다:\r\n" + preview, "오류");
                 }
             }
+        }
+
+        private bool TryGetSingleImageExportTargetPath(Wz_Image image, string extension, DumpingOptions dumpOptions, string folderDescription, out string targetPath, out string exportRoot)
+        {
+            targetPath = null;
+            exportRoot = null;
+
+            if (dumpOptions?.PreserveFullPathForSingleImage == true)
+            {
+                using (var dlg = new FolderBrowserDialog())
+                {
+                    dlg.Description = folderDescription;
+                    if (dlg.ShowDialog() != DialogResult.OK)
+                    {
+                        return false;
+                    }
+
+                    exportRoot = dlg.SelectedPath;
+                    targetPath = Path.Combine(exportRoot, BuildDumpRelativePath(image, extension));
+                    return true;
+                }
+            }
+
+            using (var dlg = new SaveFileDialog())
+            {
+                dlg.DefaultExt = extension;
+                dlg.Filter = extension == ".xml" ? "XML (*.xml)|*.xml" : "JSON (*.json)|*.json";
+                ConfigureDumpSaveDialog(dlg, image, extension);
+                if (dlg.ShowDialog() != DialogResult.OK)
+                {
+                    return false;
+                }
+
+                targetPath = dlg.FileName;
+                exportRoot = Path.GetDirectoryName(dlg.FileName);
+                if (string.IsNullOrEmpty(exportRoot))
+                {
+                    exportRoot = Directory.GetCurrentDirectory();
+                }
+
+                return true;
+            }
+        }
+
+        private static void ConfigureDumpSaveDialog(SaveFileDialog dialog, Wz_Image image, string extension)
+        {
+            string relativePath = BuildDumpRelativePath(image, extension);
+            string relativeDirectory = Path.GetDirectoryName(relativePath);
+            if (!string.IsNullOrEmpty(relativeDirectory))
+            {
+                string initialDirectory = Path.Combine(Directory.GetCurrentDirectory(), relativeDirectory);
+                Directory.CreateDirectory(initialDirectory);
+                dialog.InitialDirectory = initialDirectory;
+            }
+
+            dialog.FileName = Path.GetFileName(relativePath);
+        }
+
+        private static string BuildDumpRelativePath(Wz_Image image, string extension)
+        {
+            return image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + extension;
         }
 
         #endregion
