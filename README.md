@@ -49,9 +49,14 @@ One-shot export:
 dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base.wz" --path "Mob/8880450.img" --output "D:/MyApp/public/wz/Mob/8880450.img.json"
 ```
 
-Use `--omit-redundant-canvas-artifacts` when you want to omit placeholder `_Canvas/*.img` dump files and suppress exported `.png` files for non-`_Canvas` images.
+Dumping options:
+- `--dump-raw` / `dumpRaw`: embed raw binary payloads into the JSON as Base64. This is mainly for `png`, `sound`, `rawdata`, and `video` nodes, and can increase memory usage and file size substantially.
+- `--dump-external` / `dumpExternal`: export binary resources as external files next to the JSON tree instead of embedding them.
+- `--leave-reference` / `leaveReference`: when external files are exported, keep their relative file path in the JSON output via `file` or `files` metadata.
+- `--omit-redundant-canvas-artifacts` / `omitRedundantCanvasArtifacts`: for merged image exports such as `Skill/000.img` plus `Skill/_Canvas/000.img`, omit the placeholder `_Canvas/*.img` dump file and suppress exported `.png` files for non-`_Canvas` images.
+- `--preserve-full-path-for-single-image` / `preserveFullPathForSingleImage`: keep the full logical path for a single `.img` export. With this option, `--output` may be either the final preserved `.json` path or an export root directory.
 
-Use `--preserve-full-path-for-single-image` when a single `.img` export should keep its full logical path. With this option, `--output` may be either the final preserved `.json` path or an export root directory.
+JSON defaults are `dumpRaw=false`, `dumpExternal=false`, `leaveReference=false`, `omitRedundantCanvasArtifacts=false`, and `preserveFullPathForSingleImage=false`.
 
 Session mode:
 
