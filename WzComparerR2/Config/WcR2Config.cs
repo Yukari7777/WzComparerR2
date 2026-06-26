@@ -19,7 +19,6 @@ namespace WzComparerR2.Config
             this.SortWzOnOpened = true;
             this.AutoDetectExtFiles = true;
             this.AutoDetectUpdate = true;
-            this.AutoOpenLastWzFile = false;
             //this.EnableAutoUpdate = true;
         }
 
@@ -131,7 +130,7 @@ namespace WzComparerR2.Config
         [ConfigurationProperty("autoOpenLastWzFile")]
         public ConfigItem<bool> AutoOpenLastWzFile
         {
-            get { return (ConfigItem<bool>)this["autoOpenLastWzFile"]; }
+            get { return (ConfigItem<bool>)this["autoOpenLastWzFile"] ?? false; }
             set { this["autoOpenLastWzFile"] = value; }
         }
 
