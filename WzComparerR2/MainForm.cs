@@ -1575,7 +1575,6 @@ namespace WzComparerR2
                 return;
             Task.Run(() => openWz(path));
         }
-
         #endregion
 
         #region wzView和提取的事件和方法
