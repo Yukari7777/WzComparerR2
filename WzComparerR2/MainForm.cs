@@ -1316,6 +1316,7 @@ namespace WzComparerR2
 
             Wz_Structure wz = new Wz_Structure();
             QueryPerformance.Start();
+            DirNameContainer.Dirs.Clear();
             labelItemStatus.Text = $"로드 중: {wzFilePath}";
             advTree1.BeginUpdate();
             try
@@ -1364,9 +1365,13 @@ namespace WzComparerR2
                 advTree1.Nodes.Add(node);
                 this.openedWz.Add(wz);
                 OnWzOpened(new WzStructureEventArgs(wz)); //触发事件
+
+                labelItemStatus.Text = $"로드 중: StringLinker 초기화 중";
+                UpdateLanguageCombobox();
                 if (!this.stringLinker.HasValues)
                 {
-                    this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                    UpdateStringLinker(null, (this.comboBoxItemPrefLan.SelectedItem as DevComponents.Editors.ComboItem).Tag as Wz_Node, doStopWatch: false);
+                    //this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
                 }
                 QueryPerformance.End();
                 labelItemStatus.Text = (this.stringLinker.HasValues ? "Wz 열기 완료: 소요 시간 " : "Wz 열기 완료, StringLinker가 초기화되지 않았습니다. 소요 시간 ") + (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000) + "ms, " + wz.img_number + " IMG";
@@ -1523,6 +1528,10 @@ namespace WzComparerR2
                 labelItemStatus.Text = "Wz 닫기 완료";
             else
                 labelItemStatus.Text = "Wz 닫기 실패: 알 수 없는 오류 발생";
+
+            this.comboBoxItemPrefLan.Enabled = false;
+            this.buttonItemApplyPrefLan.Enabled = false;
+            UpdateLanguageCombobox();
         }
 
         private void buttonItemCloseAll_Click(object sender, EventArgs e)
@@ -1541,6 +1550,8 @@ namespace WzComparerR2
             openedWz.Clear();
             CharaSimLoader.ClearAll();
             stringLinker.Clear();
+            this.comboBoxItemPrefLan.Enabled = false;
+            this.buttonItemApplyPrefLan.Enabled = false;
             labelItemStatus.Text = "모두 닫기 완료";
             GC.Collect();
         }
@@ -1574,6 +1585,66 @@ namespace WzComparerR2
             if (btnItem == null || (path = btnItem.Tag as string) == null)
                 return;
             Task.Run(() => openWz(path));
+        }
+
+        private void UpdateLanguageCombobox()
+        {
+            this.comboBoxItemPrefLan.Items.Clear();
+            this.comboBoxItemPrefLan.Items.Add(new DevComponents.Editors.ComboItem() { Text = "기본" });
+            if (this.openedWz.Count == 0) return;
+
+            Wz_Node language = PluginManager.FindWz(Wz_Type.Language);
+            if (language != null)
+            {
+                this.comboBoxItemPrefLan.Items.AddRange(language.Nodes.Select(n =>
+                {
+                    var item = new DevComponents.Editors.ComboItem();
+                    item.Text = n.Text;
+                    item.Tag = n;
+                    return item;
+                }).ToArray());
+                this.comboBoxItemPrefLan.Enabled = true;
+                this.buttonItemApplyPrefLan.Enabled = true;
+            }
+
+            ConfigManager.Reload();
+            string preferredLanguage = WcR2Config.Default.PreferredLanguage;
+            int index = this.comboBoxItemPrefLan.Items.Cast<DevComponents.Editors.ComboItem>().ToList().FindIndex(i => i.Text == preferredLanguage);
+            this.comboBoxItemPrefLan.SelectedIndex = index >= 0 ? index : 0;
+        }
+
+        private void UpdateStringLinker(Wz_Node baseNode, Wz_Node updateNode, bool doStopWatch = true)
+        {
+            Wz_File stringWzFile = baseNode?.FindNodeByPath("String")?.GetNodeWzFile() ?? findStringWz();
+            Wz_File itemWzFile = baseNode?.FindNodeByPath("Item")?.GetNodeWzFile() ?? findItemWz();
+            Wz_File etcWzFile = baseNode?.FindNodeByPath("Etc")?.GetNodeWzFile() ?? findEtcWz();
+            Wz_File questWzFile = baseNode?.FindNodeByPath("Quest")?.GetNodeWzFile() ?? findQuestWz();
+
+            Wz_Node stringNode = updateNode?.FindNodeByPath("String");
+            Wz_Node itemNode = updateNode?.FindNodeByPath("Item");
+            Wz_Node etcNode = updateNode?.FindNodeByPath("Etc");
+            Wz_Node questNode = updateNode?.FindNodeByPath("Quest");
+
+            if (doStopWatch) QueryPerformance.Start();
+            this.stringLinker.Clear();
+            bool r = this.stringLinker.Load(stringWzFile, itemWzFile, etcWzFile, questWzFile) && stringLinker.Update(stringNode, itemNode, etcNode, questNode);
+            if (doStopWatch) QueryPerformance.End();
+            if (r)
+            {
+                if (doStopWatch)
+                {
+                    double ms = (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000);
+                    labelItemStatus.Text = $"StringLinker {(updateNode == null ? "초기화" : "업데이트")} 완료: 소요 시간 " + ms + "ms";
+                }
+                else
+                {
+                    labelItemStatus.Text = $"StringLinker {(updateNode == null ? "초기화" : "업데이트")} 완료";
+                }
+            }
+            else
+            {
+                labelItemStatus.Text = $"StringLinker {(updateNode == null ? "초기화" : "업데이트")}에 실패했습니다.";
+            }
         }
         #endregion
 
@@ -2603,23 +2674,7 @@ namespace WzComparerR2
 
         private void tsmi1UpdateStringLinker_Click(object sender, EventArgs e)
         {
-            Wz_Node stringNode = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("String");
-            Wz_Node itemNode = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Item");
-            Wz_Node etcNode = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Etc");
-            Wz_Node questNode = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Quest");
-
-            QueryPerformance.Start();
-            bool r = this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz()) && stringLinker.Update(stringNode, itemNode, etcNode, questNode); //reset(needed?) and update
-            QueryPerformance.End();
-            if (r)
-            {
-                double ms = (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000);
-                labelItemStatus.Text = "StringLinker 업데이트 완료: 소요 시간 " + ms + "ms";
-            }
-            else
-            {
-                MessageBoxEx.Show("StringLinker 업데이트에 실패했습니다.", "오류");
-            }
+            UpdateStringLinker(null, advTree1.SelectedNode?.AsWzNode());
         }
         private void tsmi1DumpAsJson_Click(object sender, EventArgs e)
         {
@@ -3047,17 +3102,10 @@ namespace WzComparerR2
         {
             if (string.IsNullOrEmpty(textBoxItemSearchString.Text))
                 return;
-            QueryPerformance.Start();
+
             if (!this.stringLinker.HasValues)
             {
-                if (!this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz()))
-                {
-                    MessageBoxEx.Show("Base.wz를 먼저 열어주세요.", "오류");
-                    return;
-                }
-                QueryPerformance.End();
-                double ms = (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000);
-                labelItemStatus.Text = "StringLinker 초기화 완료: 소요 시간 " + ms + "ms";
+                UpdateStringLinker(null, null);
             }
             if (comboBoxItem2.SelectedIndex < 0)
                 comboBoxItem2.SelectedIndex = 0;
@@ -3258,33 +3306,21 @@ namespace WzComparerR2
 
         private void buttonItemSelectStringWz_Click(object sender, EventArgs e)
         {
-            Wz_File stringWzFile = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("String").GetNodeWzFile();
-            Wz_File itemWzFile = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Item").GetNodeWzFile();
-            Wz_File etcWzFile = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Etc").GetNodeWzFile();
-            Wz_File questWzFile = advTree1.SelectedNode?.AsWzNode()?.FindNodeByPath("Quest").GetNodeWzFile();
-            if (stringWzFile == null || itemWzFile == null || etcWzFile == null)
-            {
-                MessageBoxEx.Show("Base.wz를 선택하세요.", "오류");
-                return;
-            }
-            QueryPerformance.Start();
-            bool r = stringLinker.Load(stringWzFile, itemWzFile, etcWzFile, questWzFile);
-            QueryPerformance.End();
-            if (r)
-            {
-                double ms = (Math.Round(QueryPerformance.GetLastInterval(), 4) * 1000);
-                labelItemStatus.Text = "StringLinker 초기화 완료: 소요 시간 " + ms + "ms";
-            }
-            else
-            {
-                MessageBoxEx.Show("StringLinker 초기화에 실패했습니다.", "오류");
-            }
+            UpdateStringLinker(advTree1.SelectedNode?.AsWzNode(), null);
         }
 
         private void buttonItemClearStringWz_Click(object sender, EventArgs e)
         {
             stringLinker.Clear();
             labelItemStatus.Text = "StringLinker 정리 완료";
+        }
+
+        private void buttonItemApplyPrefLan_Click(object sender, EventArgs e)
+        {
+            var selectedItem = this.comboBoxItemPrefLan.SelectedItem as DevComponents.Editors.ComboItem;
+            UpdateStringLinker(null, selectedItem.Tag as Wz_Node);
+            WcR2Config.Default.PreferredLanguage = selectedItem.Text;
+            ConfigManager.Save();
         }
 
         private void buttonItemPatcher_Click(object sender, EventArgs e)
@@ -3823,7 +3859,7 @@ namespace WzComparerR2
 
             if (!this.stringLinker.HasValues)
             {
-                this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                UpdateStringLinker(null, null);
             }
 
             object obj = null;
@@ -3834,6 +3870,7 @@ namespace WzComparerR2
                         return;
                     CharaSimLoader.LoadSetItemsIfEmpty();
                     CharaSimLoader.LoadAstraSubWeaponsIfEmpty();
+                    CharaSimLoader.LoadDestinyWeaponsIfEmpty();
                     CharaSimLoader.LoadExclusiveEquipsIfEmpty();
                     CharaSimLoader.LoadCommoditiesIfEmpty();
                     if (selectedNode.FullPathToFile.Contains("Familiar"))
@@ -4760,7 +4797,7 @@ namespace WzComparerR2
             if (dlg.ShowDialog() == DialogResult.OK)
             {
                 if (!this.stringLinker.HasValues)
-                    this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                    UpdateStringLinker(null, null);
 
                 DBConnection conn = new DBConnection(this.stringLinker);
                 DataSet ds = conn.GenerateSkillTable();
@@ -4805,7 +4842,7 @@ namespace WzComparerR2
                         await Task.Run(() =>
                         {
                             if (!this.stringLinker.HasValues)
-                                this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                                UpdateStringLinker(null, null);
 
                             // Initialize VCore Dictionary
                             Dictionary<int, List<int>> FifthJobSkillToJobID = new Dictionary<int, List<int>>();
@@ -4976,7 +5013,7 @@ namespace WzComparerR2
             if (dlg.ShowDialog() == DialogResult.OK)
             {
                 if (!this.stringLinker.HasValues)
-                    this.stringLinker.Load(findStringWz(), findItemWz(), findEtcWz(), findQuestWz());
+                    UpdateStringLinker(null, null);
 
                 DBConnection conn = new DBConnection(this.stringLinker);
                 conn.ExportSkillOption(dlg.SelectedPath);
