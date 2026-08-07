@@ -1285,8 +1285,8 @@ namespace WzComparerR2.Comparer
                     }
                     else if (RenderNew is MobTooltipRenderer)
                     {
-                        ImageNew = (RenderNew as MobTooltipRenderer).Render(true);
-                        ImageOld = (RenderOld as MobTooltipRenderer).Render(true);
+                        ImageNew = (RenderNew as MobTooltipRenderer).Render(true, (RenderOld as MobTooltipRenderer).MobInfo.ElemAttr);
+                        ImageOld = (RenderOld as MobTooltipRenderer).Render(true, (RenderNew as MobTooltipRenderer).MobInfo.ElemAttr);
                     }
                     else
                     {
@@ -1399,6 +1399,10 @@ namespace WzComparerR2.Comparer
             if (!match.Success)
             {
                 match = Regex.Match(node.FullPathToFile, @"^Skill\d*\\\d+.img\\skill\\(\d+)\\(common|masterLevel|combatOrders|action|isPetAutoBuff|isSequenceOn|BGM).*"); // 변경점 중 스킬 툴팁 출력할 것들
+                if (!match.Success)
+                {
+                    match = Regex.Match(node.FullPathToFile, @"^Skill\d*\\\d+.img\\skill\\(\d+)\\level\\\d+\\.*");
+                }
                 tag = node.Text;
             }
 
@@ -1565,7 +1569,7 @@ namespace WzComparerR2.Comparer
 
             if (!match.Success)
             {
-                match = Regex.Match(node.FullPathToFile, @"^Mob\\(\d+).img\\info\\(level|maxHP|PDRate|MDRate|boss|exp).*"); // 변경점 중 툴팁 출력할 것들
+                match = Regex.Match(node.FullPathToFile, @"^Mob\\(\d+).img\\info\\([^\\]+)"); // 변경점 중 툴팁 출력할 것들
                 tag = node.Text;
             }
 
