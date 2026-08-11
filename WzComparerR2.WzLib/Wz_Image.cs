@@ -41,6 +41,8 @@ namespace WzComparerR2.WzLib
         public long Offset { get; set; }
         public bool IgnoreChecksum { get; set; }
 
+        public bool Extracted => this.extr;
+
         public Wz_Node Node { get; private set; }
 
         public Wz_Node OwnerNode { get; set; }

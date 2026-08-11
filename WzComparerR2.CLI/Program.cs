@@ -19,21 +19,26 @@ namespace WzComparerR2.CLI
         private static readonly HashSet<string> DumpFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "--dump-raw",
-            "--no-dump-raw",
             "--dump-external",
-            "--no-dump-external",
             "--leave-reference",
-            "--no-leave-reference",
-            "--omit-redundant-canvas-artifacts",
-            "--no-omit-redundant-canvas-artifacts",
-            "--preserve-full-path-for-single-image",
-            "--no-preserve-full-path-for-single-image",
+        };
+
+        private static readonly HashSet<string> ValueOptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "--base",
+            "--path",
+            "--output",
+            "--format",
+        };
+
+        private static readonly JsonSerializerOptions ResponseJsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
         private static int Main(string[] args)
         {
             ConfigureProcess();
-
             if (args.Length == 0)
             {
                 WriteUsage(Console.Error);
@@ -44,16 +49,13 @@ namespace WzComparerR2.CLI
             {
                 case "session":
                     return RunSession(args.Skip(1).ToArray());
-
                 case "export":
                     return RunOneShotExport(args.Skip(1).ToArray());
-
                 case "help":
                 case "--help":
                 case "-h":
                     WriteUsage(Console.Out);
                     return ExitSuccess;
-
                 default:
                     WriteError($"Unknown command: {args[0]}");
                     WriteUsage(Console.Error);
@@ -66,31 +68,23 @@ namespace WzComparerR2.CLI
             Console.InputEncoding = new UTF8Encoding(false);
             Console.OutputEncoding = new UTF8Encoding(false);
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
             Wz_Structure.DefaultAutoDetectExtFiles = true;
             Wz_Structure.DefaultImgCheckDisabled = false;
         }
 
         private static int RunSession(string[] args)
         {
-            if (!TryParseNamedArguments(args, out var options, out var flags, out var errorMessage))
+            if (!TryParseNamedArguments(args, out var namedOptions, out var flags, out var parseError))
             {
-                WriteError(errorMessage);
+                WriteError(parseError);
                 WriteUsage(Console.Error);
                 return ExitUsageError;
             }
 
-            string basePath = GetRequiredOption(options, "--base");
-            if (basePath == null)
+            string basePath = GetRequiredOption(namedOptions, "--base");
+            if (basePath == null || namedOptions.Count != 1 || flags.Count > 0)
             {
-                WriteError("Missing required option: --base");
-                WriteUsage(Console.Error);
-                return ExitUsageError;
-            }
-
-            if (flags.Count > 0)
-            {
-                WriteError("Session mode does not accept dump flags at startup.");
+                WriteError("Session mode accepts only --base <Base.wz> at startup.");
                 WriteUsage(Console.Error);
                 return ExitUsageError;
             }
@@ -102,12 +96,7 @@ namespace WzComparerR2.CLI
             }
             catch (Exception ex)
             {
-                WriteJsonResponse(new
-                {
-                    ok = false,
-                    @event = "ready",
-                    error = ex.Message,
-                });
+                WriteJsonResponse(new { ok = false, @event = "ready", error = ex.Message });
                 return ExitLoadError;
             }
 
@@ -128,71 +117,88 @@ namespace WzComparerR2.CLI
                     {
                         continue;
                     }
-
-                    switch (HandleSessionCommand(session, line))
+                    if (HandleSessionCommand(session, line) == SessionCommandResult.Exit)
                     {
-                        case SessionCommandResult.Exit:
-                            return ExitSuccess;
-
-                        case SessionCommandResult.TerminateWithError:
-                            return ExitExportError;
+                        return ExitSuccess;
                     }
                 }
             }
-
             return ExitSuccess;
         }
 
         private static int RunOneShotExport(string[] args)
         {
-            if (!TryParseNamedArguments(args, out var options, out var flags, out var errorMessage))
+            if (!TryParseNamedArguments(args, out var namedOptions, out var flags, out var parseError))
             {
-                WriteError(errorMessage);
+                WriteError(parseError);
                 WriteUsage(Console.Error);
                 return ExitUsageError;
             }
 
-            string basePath = GetRequiredOption(options, "--base");
-            string logicalPath = GetRequiredOption(options, "--path");
-            string outputPath = GetRequiredOption(options, "--output");
-            if (basePath == null || logicalPath == null || outputPath == null)
+            string basePath = GetRequiredOption(namedOptions, "--base");
+            string logicalPath = GetRequiredOption(namedOptions, "--path");
+            string outputRoot = GetRequiredOption(namedOptions, "--output");
+            if (basePath == null || logicalPath == null || outputRoot == null)
             {
                 WriteError("One-shot export requires --base, --path, and --output.");
                 WriteUsage(Console.Error);
                 return ExitUsageError;
             }
+            if (!TryParseFormat(namedOptions.TryGetValue("--format", out var value) ? value : null, out var format, out parseError))
+            {
+                WriteError(parseError);
+                return ExitUsageError;
+            }
 
+            var stopwatch = Stopwatch.StartNew();
+            LoadedWzSession session;
             try
             {
-                using (var session = LoadedWzSession.Open(basePath))
-                {
-                    if (!session.TryExportJson(logicalPath, outputPath, BuildDumpingOptions(flags), out var error))
-                    {
-                        WriteError(error?.Message ?? "Export failed.");
-                        return ExitExportError;
-                    }
-
-                    WriteJsonResponse(new
-                    {
-                        ok = true,
-                        command = "export",
-                        path = logicalPath,
-                        output = Path.GetFullPath(outputPath),
-                    });
-                    return ExitSuccess;
-                }
+                session = LoadedWzSession.Open(basePath);
             }
             catch (Exception ex)
             {
-                WriteError(ex.Message);
+                stopwatch.Stop();
+                var result = new WzExportResult();
+                result.AddFailure(new WzExportFailure
+                {
+                    Code = "source_load_failed",
+                    SourcePath = logicalPath,
+                    TargetWzFiles = new[] { basePath },
+                    Stage = "load",
+                    Reason = ex.Message,
+                });
+                WriteExportResponse(null, logicalPath, outputRoot, format, result, stopwatch.ElapsedMilliseconds);
                 return ExitLoadError;
+            }
+
+            using (session)
+            {
+                WzExportResult result;
+                try
+                {
+                    result = session.Export(logicalPath, outputRoot, format, BuildDumpingOptions(flags));
+                }
+                catch (Exception ex)
+                {
+                    result = new WzExportResult();
+                    result.AddFailure(new WzExportFailure
+                    {
+                        Code = "export_failed",
+                        SourcePath = logicalPath,
+                        Stage = "export",
+                        Reason = ex.Message,
+                    });
+                }
+                stopwatch.Stop();
+                WriteExportResponse(null, logicalPath, outputRoot, format, result, stopwatch.ElapsedMilliseconds);
+                return result.Success ? ExitSuccess : ExitExportError;
             }
         }
 
         private static SessionCommandResult HandleSessionCommand(LoadedWzSession session, string line)
         {
             string requestId = null;
-
             try
             {
                 using (var document = JsonDocument.Parse(line))
@@ -200,14 +206,8 @@ namespace WzComparerR2.CLI
                     JsonElement root = document.RootElement;
                     if (root.ValueKind != JsonValueKind.Object)
                     {
-                        WriteJsonResponse(new
-                        {
-                            ok = false,
-                            error = "Session command must be a JSON object.",
-                        });
-                        return SessionCommandResult.Continue;
+                        throw new InvalidOperationException("Session command must be a JSON object.");
                     }
-
                     if (root.TryGetProperty("requestId", out var requestIdElement))
                     {
                         requestId = requestIdElement.ToString();
@@ -217,48 +217,24 @@ namespace WzComparerR2.CLI
                     switch (command.ToLowerInvariant())
                     {
                         case "ping":
-                            WriteJsonResponse(new
-                            {
-                                ok = true,
-                                requestId,
-                                command = "ping",
-                            });
+                            WriteJsonResponse(new { ok = true, requestId, command = "ping" });
                             return SessionCommandResult.Continue;
-
                         case "quit":
                         case "exit":
-                            WriteJsonResponse(new
-                            {
-                                ok = true,
-                                requestId,
-                                @event = "bye",
-                            });
+                            WriteJsonResponse(new { ok = true, requestId, @event = "bye" });
                             return SessionCommandResult.Exit;
-
                         case "export":
                             HandleExportCommand(session, root, requestId);
                             return SessionCommandResult.Continue;
-
                         default:
-                            WriteJsonResponse(new
-                            {
-                                ok = false,
-                                requestId,
-                                command,
-                                error = $"Unknown session command: {command}",
-                            });
+                            WriteJsonResponse(new { ok = false, requestId, command, error = $"Unknown session command: {command}" });
                             return SessionCommandResult.Continue;
                     }
                 }
             }
             catch (Exception ex)
             {
-                WriteJsonResponse(new
-                {
-                    ok = false,
-                    requestId,
-                    error = ex.Message,
-                });
+                WriteJsonResponse(new { ok = false, requestId, error = ex.Message });
                 return SessionCommandResult.Continue;
             }
         }
@@ -266,143 +242,175 @@ namespace WzComparerR2.CLI
         private static void HandleExportCommand(LoadedWzSession session, JsonElement root, string requestId)
         {
             string logicalPath = GetRequiredString(root, "path");
-            string outputPath = GetRequiredString(root, "output");
-            var options = ReadDumpingOptions(root);
+            string outputRoot = GetRequiredString(root, "output");
+            WzDumpFormat format = WzDumpFormat.Json;
             var stopwatch = Stopwatch.StartNew();
+            WzExportResult result;
+            try
+            {
+                format = ReadFormat(root);
+                DumpingOptions options = ReadDumpingOptions(root);
+                result = session.Export(logicalPath, outputRoot, format, options);
+            }
+            catch (Exception ex)
+            {
+                result = new WzExportResult();
+                result.AddFailure(new WzExportFailure
+                {
+                    Code = "export_failed",
+                    SourcePath = logicalPath,
+                    Stage = "request",
+                    Reason = ex.Message,
+                });
+            }
+            stopwatch.Stop();
+            WriteExportResponse(requestId, logicalPath, outputRoot, format, result, stopwatch.ElapsedMilliseconds);
+        }
 
-            if (!session.TryExportJson(logicalPath, outputPath, options, out var error))
+        private static void WriteExportResponse(string requestId, string logicalPath, string outputRoot, WzDumpFormat format, WzExportResult result, long durationMs)
+        {
+            string absoluteOutput;
+            try
+            {
+                absoluteOutput = Path.GetFullPath(outputRoot);
+            }
+            catch
+            {
+                absoluteOutput = outputRoot;
+            }
+            if (result.Success)
             {
                 WriteJsonResponse(new
                 {
-                    ok = false,
+                    ok = true,
                     requestId,
                     command = "export",
                     path = logicalPath,
-                    output = Path.GetFullPath(outputPath),
-                    error = error?.Message ?? "Export failed.",
+                    output = absoluteOutput,
+                    format = FormatName(format),
+                    document = result.DocumentPath,
+                    documentWritten = result.DocumentWritten,
+                    externalFileCount = result.ExternalFileCount,
+                    durationMs,
                 });
                 return;
             }
 
-            stopwatch.Stop();
             WriteJsonResponse(new
             {
-                ok = true,
+                ok = false,
                 requestId,
                 command = "export",
                 path = logicalPath,
-                output = Path.GetFullPath(outputPath),
-                durationMs = stopwatch.ElapsedMilliseconds,
+                output = absoluteOutput,
+                format = FormatName(format),
+                error = SummarizeFailures(result.Failures),
+                failures = result.Failures,
+                durationMs,
             });
         }
 
         private static DumpingOptions ReadDumpingOptions(JsonElement root)
         {
-            var options = DumpingOptions.CreateJsonDefaults();
-            if (root.TryGetProperty("dumpRaw", out var dumpRaw)
-                && (dumpRaw.ValueKind == JsonValueKind.True || dumpRaw.ValueKind == JsonValueKind.False))
+            return new DumpingOptions
             {
-                options.DumpRaw = dumpRaw.GetBoolean();
-            }
-
-            if (root.TryGetProperty("dumpExternal", out var dumpExternal)
-                && (dumpExternal.ValueKind == JsonValueKind.True || dumpExternal.ValueKind == JsonValueKind.False))
-            {
-                options.DumpExternal = dumpExternal.GetBoolean();
-            }
-
-            if (root.TryGetProperty("leaveReference", out var leaveReference)
-                && (leaveReference.ValueKind == JsonValueKind.True || leaveReference.ValueKind == JsonValueKind.False))
-            {
-                options.LeaveReference = leaveReference.GetBoolean();
-            }
-
-            if (root.TryGetProperty("omitRedundantCanvasArtifacts", out var omitRedundantCanvasArtifacts)
-                && (omitRedundantCanvasArtifacts.ValueKind == JsonValueKind.True || omitRedundantCanvasArtifacts.ValueKind == JsonValueKind.False))
-            {
-                options.OmitRedundantCanvasArtifacts = omitRedundantCanvasArtifacts.GetBoolean();
-            }
-
-            if (root.TryGetProperty("preserveFullPathForSingleImage", out var preserveFullPathForSingleImage)
-                && (preserveFullPathForSingleImage.ValueKind == JsonValueKind.True || preserveFullPathForSingleImage.ValueKind == JsonValueKind.False))
-            {
-                options.PreserveFullPathForSingleImage = preserveFullPathForSingleImage.GetBoolean();
-            }
-
-            return options;
+                DumpRaw = ReadOptionalBoolean(root, "dumpRaw"),
+                DumpExternal = ReadOptionalBoolean(root, "dumpExternal"),
+                LeaveReference = ReadOptionalBoolean(root, "leaveReference"),
+            };
         }
 
-        private static bool TryParseNamedArguments(string[] args, out Dictionary<string, string> options, out HashSet<string> flags, out string errorMessage)
+        private static bool ReadOptionalBoolean(JsonElement root, string name)
+        {
+            if (!root.TryGetProperty(name, out var value))
+            {
+                return false;
+            }
+            if (value.ValueKind != JsonValueKind.True && value.ValueKind != JsonValueKind.False)
+            {
+                throw new InvalidOperationException($"Property '{name}' must be a boolean.");
+            }
+            return value.GetBoolean();
+        }
+
+        private static WzDumpFormat ReadFormat(JsonElement root)
+        {
+            string value = null;
+            if (root.TryGetProperty("format", out var formatElement))
+            {
+                if (formatElement.ValueKind != JsonValueKind.String)
+                {
+                    throw new InvalidOperationException("Property 'format' must be 'json' or 'xml'.");
+                }
+                value = formatElement.GetString();
+            }
+            if (!TryParseFormat(value, out var format, out var error))
+            {
+                throw new InvalidOperationException(error);
+            }
+            return format;
+        }
+
+        private static bool TryParseFormat(string value, out WzDumpFormat format, out string error)
+        {
+            if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "json", StringComparison.OrdinalIgnoreCase))
+            {
+                format = WzDumpFormat.Json;
+                error = null;
+                return true;
+            }
+            if (string.Equals(value, "xml", StringComparison.OrdinalIgnoreCase))
+            {
+                format = WzDumpFormat.Xml;
+                error = null;
+                return true;
+            }
+            format = default;
+            error = $"Unsupported format: {value}. Expected 'json' or 'xml'.";
+            return false;
+        }
+
+        private static bool TryParseNamedArguments(string[] args, out Dictionary<string, string> options, out HashSet<string> flags, out string error)
         {
             options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            errorMessage = null;
-
+            error = null;
             for (int i = 0; i < args.Length; i++)
             {
                 string arg = args[i];
-                if (!arg.StartsWith("--", StringComparison.Ordinal))
-                {
-                    errorMessage = $"Unexpected argument: {arg}";
-                    return false;
-                }
-
                 if (DumpFlags.Contains(arg))
                 {
                     flags.Add(arg);
                     continue;
                 }
-
-                if (i + 1 >= args.Length)
+                if (!ValueOptions.Contains(arg))
                 {
-                    errorMessage = $"Missing value for argument: {arg}";
+                    error = $"Unknown option: {arg}";
                     return false;
                 }
-
+                if (i + 1 >= args.Length)
+                {
+                    error = $"Missing value for argument: {arg}";
+                    return false;
+                }
                 options[arg] = args[++i];
             }
-
             return true;
         }
 
         private static DumpingOptions BuildDumpingOptions(HashSet<string> flags)
         {
-            var options = DumpingOptions.CreateJsonDefaults();
-            ApplyFlag(flags, "--dump-raw", "--no-dump-raw", value => options.DumpRaw = value);
-            ApplyFlag(flags, "--dump-external", "--no-dump-external", value => options.DumpExternal = value);
-            ApplyFlag(flags, "--leave-reference", "--no-leave-reference", value => options.LeaveReference = value);
-            ApplyFlag(flags, "--omit-redundant-canvas-artifacts", "--no-omit-redundant-canvas-artifacts", value => options.OmitRedundantCanvasArtifacts = value);
-            ApplyFlag(flags, "--preserve-full-path-for-single-image", "--no-preserve-full-path-for-single-image", value => options.PreserveFullPathForSingleImage = value);
-            return options;
-        }
-
-        private static void ApplyFlag(HashSet<string> flags, string positiveFlag, string negativeFlag, Action<bool> apply)
-        {
-            if (flags.Contains(positiveFlag))
+            return new DumpingOptions
             {
-                apply(true);
-            }
-            else if (flags.Contains(negativeFlag))
-            {
-                apply(false);
-            }
-        }
-
-        private enum SessionCommandResult
-        {
-            Continue,
-            Exit,
-            TerminateWithError,
+                DumpRaw = flags.Contains("--dump-raw"),
+                DumpExternal = flags.Contains("--dump-external"),
+                LeaveReference = flags.Contains("--leave-reference"),
+            };
         }
 
         private static string GetRequiredOption(Dictionary<string, string> options, string name)
         {
-            if (options.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-
-            return null;
+            return options.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value) ? value : null;
         }
 
         private static string GetRequiredString(JsonElement element, string name)
@@ -411,13 +419,27 @@ namespace WzComparerR2.CLI
             {
                 throw new InvalidOperationException($"Missing required string property: {name}");
             }
-
             return value.GetString();
+        }
+
+        private static string SummarizeFailures(IReadOnlyList<WzExportFailure> failures)
+        {
+            if (failures == null || failures.Count == 0)
+            {
+                return "Export failed.";
+            }
+            string reason = failures[0].Reason ?? failures[0].Code ?? "Export failed.";
+            return failures.Count == 1 ? reason : $"{failures.Count} export failures. First: {reason}";
+        }
+
+        private static string FormatName(WzDumpFormat format)
+        {
+            return format == WzDumpFormat.Xml ? "xml" : "json";
         }
 
         private static void WriteJsonResponse(object payload)
         {
-            Console.Out.WriteLine(JsonSerializer.Serialize(payload));
+            Console.Out.WriteLine(JsonSerializer.Serialize(payload, ResponseJsonOptions));
             Console.Out.Flush();
         }
 
@@ -430,28 +452,34 @@ namespace WzComparerR2.CLI
         {
             writer.WriteLine("Usage:");
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
-            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <file-or-root> [--dump-raw|--no-dump-raw] [--dump-external|--no-dump-external] [--leave-reference|--no-leave-reference] [--omit-redundant-canvas-artifacts|--no-omit-redundant-canvas-artifacts] [--preserve-full-path-for-single-image|--no-preserve-full-path-for-single-image]");
+            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference]");
             writer.WriteLine();
             writer.WriteLine("Session stdin protocol:");
-            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img\",\"output\":\"D:/MyApp/public/wz/Mob/8880450.img.json\"}");
-            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Skill/000.img\",\"output\":\"D:/MyApp/public/wz/Skill/000.img.json\",\"dumpExternal\":true,\"preserveFullPathForSingleImage\":true}");
-            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz/Mob/8880450.info.json\"}");
+            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img\",\"output\":\"D:/MyApp/public/wz\",\"dumpExternal\":true}");
+            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz\",\"format\":\"xml\"}");
             writer.WriteLine("  {\"command\":\"quit\"}");
+        }
+
+        private enum SessionCommandResult
+        {
+            Continue,
+            Exit,
         }
 
         private sealed class LoadedWzSession : IDisposable
         {
             private readonly Wz_Structure structure;
+            private readonly WzNodeResolver resolver;
             private bool disposed;
 
             private LoadedWzSession(string sourcePath, Wz_Structure structure)
             {
                 this.SourcePath = sourcePath;
                 this.structure = structure;
+                this.resolver = new WzNodeResolver(structure, sourcePath);
             }
 
             public string SourcePath { get; }
-
             public Wz_Node RootNode => this.structure.WzNode;
 
             public static LoadedWzSession Open(string sourcePath)
@@ -461,7 +489,6 @@ namespace WzComparerR2.CLI
                 {
                     throw new FileNotFoundException("WZ source file not found.", fullPath);
                 }
-
                 var structure = new Wz_Structure();
                 try
                 {
@@ -475,42 +502,51 @@ namespace WzComparerR2.CLI
                 }
             }
 
-            public bool TryExportJson(string logicalPath, string outputPath, DumpingOptions options, out Exception error)
+            public WzExportResult Export(string logicalPath, string outputRoot, WzDumpFormat format, DumpingOptions options)
             {
-                error = null;
-
-                WzNodeResolver.ResolvedNode resolvedNode = null;
-                try
+                if (!this.resolver.TryResolveExactPath(logicalPath, out var resolvedNode, out var resolutionFailure))
                 {
-                    if (!WzNodeResolver.TryResolveExactPath(this.RootNode, logicalPath, out resolvedNode, out error))
+                    var failed = new WzExportResult();
+                    failed.AddFailure(new WzExportFailure
                     {
-                        return false;
-                    }
+                        Code = resolutionFailure?.Code ?? "path_resolution_failed",
+                        SourcePath = resolutionFailure?.SourcePath ?? logicalPath,
+                        LinkType = resolutionFailure?.LinkType,
+                        LinkPath = resolutionFailure?.LinkPath,
+                        TargetPath = resolutionFailure?.TargetPath,
+                        TargetWzFiles = resolutionFailure?.TargetWzFiles ?? Array.Empty<string>(),
+                        Stage = resolutionFailure?.Stage ?? "path",
+                        Reason = resolutionFailure?.Reason ?? "Exact path could not be resolved.",
+                        SourceWasLinkStub = resolutionFailure?.SourceWasLinkStub == true,
+                    });
+                    return failed;
+                }
 
+                using (resolvedNode)
+                {
                     if (!resolvedNode.IsInsideImage)
                     {
-                        error = new InvalidOperationException("Exact path must point to an image or a node inside an image.");
-                        return false;
+                        var failed = new WzExportResult();
+                        failed.AddFailure(new WzExportFailure
+                        {
+                            Code = "not_inside_image",
+                            SourcePath = logicalPath,
+                            Stage = "path",
+                            Reason = "Exact path must point to an image or a node inside an image.",
+                        });
+                        return failed;
                     }
-
-                    ResolveJsonExportPaths(resolvedNode.Node, outputPath, options, out string fullOutputPath, out string exportRoot);
-                    return WzDumpExporter.TryExportNodeAsJson(resolvedNode.Node, fullOutputPath, exportRoot, options, out error);
-                }
-                finally
-                {
-                    resolvedNode?.Dispose();
+                    return WzDumpExporter.Export(resolvedNode.Node, outputRoot, format, options, resolvedNode);
                 }
             }
 
             public void Dispose()
             {
-                if (disposed)
+                if (!this.disposed)
                 {
-                    return;
+                    this.structure.Clear();
+                    this.disposed = true;
                 }
-
-                this.structure.Clear();
-                disposed = true;
             }
 
             private static void LoadStructure(Wz_Structure structure, string sourcePath)
@@ -522,7 +558,6 @@ namespace WzComparerR2.CLI
                     structure.LoadMsFile(sourcePath);
                     return;
                 }
-
                 if (structure.IsKMST1125WzFormat(sourcePath))
                 {
                     structure.LoadKMST1125DataWz(sourcePath);
@@ -531,9 +566,9 @@ namespace WzComparerR2.CLI
                         string packsDir = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(sourcePath)), "Packs");
                         if (Directory.Exists(packsDir))
                         {
-                            foreach (var ext in new[] { ".ms", ".mn" })
+                            foreach (var packExtension in new[] { ".ms", ".mn" })
                             {
-                                foreach (var msFile in Directory.GetFiles(packsDir, $"*{ext}"))
+                                foreach (var msFile in Directory.GetFiles(packsDir, "*" + packExtension))
                                 {
                                     structure.LoadMsFile(msFile);
                                 }
@@ -542,77 +577,7 @@ namespace WzComparerR2.CLI
                     }
                     return;
                 }
-
                 structure.Load(sourcePath, true);
-            }
-
-            private static void ResolveJsonExportPaths(Wz_Node node, string outputPath, DumpingOptions options, out string fullOutputPath, out string exportRoot)
-            {
-                fullOutputPath = Path.GetFullPath(outputPath);
-                exportRoot = Path.GetDirectoryName(fullOutputPath);
-
-                if (options?.PreserveFullPathForSingleImage != true)
-                {
-                    return;
-                }
-
-                Wz_Image image = node?.GetValue<Wz_Image>();
-                if (image == null)
-                {
-                    return;
-                }
-
-                string relativeOutputPath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
-                if (TryInferExportRootFromPreservedOutput(fullOutputPath, relativeOutputPath, out string inferredExportRoot))
-                {
-                    exportRoot = inferredExportRoot;
-                    fullOutputPath = Path.Combine(exportRoot, relativeOutputPath);
-                    return;
-                }
-
-                if (LooksLikeDirectoryPath(outputPath))
-                {
-                    exportRoot = Path.GetFullPath(outputPath);
-                    fullOutputPath = Path.Combine(exportRoot, relativeOutputPath);
-                }
-            }
-
-            private static bool TryInferExportRootFromPreservedOutput(string fullOutputPath, string relativeOutputPath, out string exportRoot)
-            {
-                string suffix = Path.DirectorySeparatorChar + relativeOutputPath;
-                if (fullOutputPath.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    exportRoot = fullOutputPath.Substring(0, fullOutputPath.Length - suffix.Length);
-                    if (string.IsNullOrEmpty(exportRoot))
-                    {
-                        exportRoot = Path.GetPathRoot(fullOutputPath);
-                    }
-                    return !string.IsNullOrEmpty(exportRoot);
-                }
-
-                exportRoot = null;
-                return false;
-            }
-
-            private static bool LooksLikeDirectoryPath(string outputPath)
-            {
-                if (string.IsNullOrWhiteSpace(outputPath))
-                {
-                    return false;
-                }
-
-                if (outputPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-                    || outputPath.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal))
-                {
-                    return true;
-                }
-
-                if (Directory.Exists(outputPath))
-                {
-                    return true;
-                }
-
-                return !Path.HasExtension(outputPath);
             }
         }
     }

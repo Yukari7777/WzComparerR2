@@ -73,8 +73,7 @@ namespace WzComparerR2
         DefaultLevel skillDefaultLevel = DefaultLevel.Level0;
         int skillInterval = 32;
 
-        DumpingOptions xmlDumpingOptions = DumpingOptions.CreateXmlDefaults();
-        DumpingOptions jsonDumpingOptions = DumpingOptions.CreateJsonDefaults();
+        DumpingOptions dumpingOptions = DumpingOptions.CreateDefaults();
 
         //compare
         Thread compareThread;
@@ -2560,13 +2559,13 @@ namespace WzComparerR2
             }
         }
 
-        private bool TryPromptDumpingOptions(bool isXmlExport, out DumpingOptions options)
+        private bool TryPromptDumpingOptions(WzDumpFormat format, out DumpingOptions options)
         {
             options = null;
-            var defaults = (isXmlExport ? xmlDumpingOptions : jsonDumpingOptions).Clone();
+            var defaults = dumpingOptions.Clone();
             using (var dlg = new FrmDumpingOptions(defaults))
             {
-                dlg.Text = isXmlExport ? "XML 내보내기 옵션" : "JSON 내보내기 옵션";
+                dlg.Text = format == WzDumpFormat.Xml ? "XML 내보내기 옵션" : "JSON 내보내기 옵션";
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     options = dlg.Options.Clone();
@@ -2575,14 +2574,7 @@ namespace WzComparerR2
 
             if (options != null)
             {
-                if (isXmlExport)
-                {
-                    xmlDumpingOptions = options.Clone();
-                }
-                else
-                {
-                    jsonDumpingOptions = options.Clone();
-                }
+                dumpingOptions = options.Clone();
                 return true;
             }
 
@@ -2591,86 +2583,7 @@ namespace WzComparerR2
 
         private void tsmi1DumpAsXml_Click(object sender, EventArgs e)
         {
-            if (!TryPromptDumpingOptions(true, out var dumpOptions))
-            {
-                return;
-            }
-
-            Wz_Node selectedNode = advTree1.SelectedNode?.AsWzNode();
-            if (selectedNode == null)
-            {
-                MessageBoxEx.Show("XML로 내보낼 노드를 선택하세요.");
-                return;
-            }
-
-            Wz_Image img = selectedNode.GetValue<Wz_Image>();
-            if (img != null)
-            {
-                if (TryGetSingleImageExportTargetPath(img, ".xml", dumpOptions, "XML 내보내기 폴더를 선택하세요.", out string targetPath, out string exportRoot))
-                {
-                    if (WzDumpExporter.TryExportImageAsXml(img, targetPath, exportRoot, dumpOptions, out Exception error))
-                    {
-                        labelItemStatus.Text = "XML로 내보내기 완료: " + img.Name;
-                    }
-                    else
-                    {
-                        MessageBoxEx.Show(error?.ToString() ?? "내보내기에 실패했습니다.", "오류");
-                    }
-                }
-                return;
-            }
-
-            List<Wz_Image> images = WzDumpExporter.EnumerateImages(selectedNode).ToList();
-            if (images.Count == 0)
-            {
-                MessageBoxEx.Show("선택한 노드에 XML로 내보낼 img가 없습니다.");
-                return;
-            }
-
-            using (var dlg = new FolderBrowserDialog())
-            {
-                dlg.Description = "XML 내보내기 폴더를 선택하세요.";
-                if (dlg.ShowDialog() != DialogResult.OK)
-                {
-                    return;
-                }
-
-                string exportRoot = dlg.SelectedPath;
-                int successCount = 0;
-                List<string> failed = new List<string>();
-
-                foreach (var image in images)
-                {
-                    string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".xml";
-                    string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (WzDumpExporter.TryExportImageAsXml(image, targetPath, exportRoot, dumpOptions, out Exception error))
-                    {
-                        successCount++;
-                    }
-                    else
-                    {
-                        string message = error?.Message ?? "내보내기에 실패했습니다.";
-                        failed.Add(image.Node.FullPathToFile + ": " + message);
-                    }
-                }
-
-                string statusMessage = $"XML로 내보내기 완료: {successCount}개";
-                if (failed.Count > 0)
-                {
-                    statusMessage += $", 실패 {failed.Count}개";
-                }
-                labelItemStatus.Text = statusMessage;
-
-                if (failed.Count > 0)
-                {
-                    var preview = string.Join("\r\n", failed.Take(10));
-                    if (failed.Count > 10)
-                    {
-                        preview += "\r\n...";
-                    }
-                    MessageBoxEx.Show("일부 항목을 내보내지 못했습니다:\r\n" + preview, "오류");
-                }
-            }
+            ExportSelectedNode(WzDumpFormat.Xml);
         }
 
         private void tsmi1UpdateStringLinker_Click(object sender, EventArgs e)
@@ -2679,7 +2592,12 @@ namespace WzComparerR2
         }
         private void tsmi1DumpAsJson_Click(object sender, EventArgs e)
         {
-            if (!TryPromptDumpingOptions(false, out var dumpOptions))
+            ExportSelectedNode(WzDumpFormat.Json);
+        }
+
+        private void ExportSelectedNode(WzDumpFormat format)
+        {
+            if (!TryPromptDumpingOptions(format, out var dumpOptions))
             {
                 return;
             }
@@ -2687,140 +2605,143 @@ namespace WzComparerR2
             Wz_Node selectedNode = advTree1.SelectedNode?.AsWzNode();
             if (selectedNode == null)
             {
-                MessageBoxEx.Show("JSON로 내보낼 노드를 선택하세요.");
-                return;
-            }
-
-            Wz_Image img = selectedNode.GetValue<Wz_Image>();
-            if (img != null)
-            {
-                if (TryGetSingleImageExportTargetPath(img, ".json", dumpOptions, "JSON 내보내기 폴더를 선택하세요.", out string targetPath, out string exportRoot))
-                {
-                    if (WzDumpExporter.TryExportImageAsJson(img, targetPath, exportRoot, dumpOptions, out Exception error))
-                    {
-                        labelItemStatus.Text = "JSON로 내보내기 완료: " + img.Name;
-                    }
-                    else
-                    {
-                        MessageBoxEx.Show(error?.ToString() ?? "내보내기에 실패했습니다.", "오류");
-                    }
-                }
+                MessageBoxEx.Show($"{GetFormatName(format)}로 내보낼 노드를 선택하세요.");
                 return;
             }
 
             List<Wz_Image> images = WzDumpExporter.EnumerateImages(selectedNode).ToList();
             if (images.Count == 0)
             {
-                MessageBoxEx.Show("선택한 노드에 JSON로 내보낼 img가 없습니다.");
+                MessageBoxEx.Show($"선택한 노드에 {GetFormatName(format)}로 내보낼 img가 없습니다.");
                 return;
             }
 
             using (var dlg = new FolderBrowserDialog())
             {
-                dlg.Description = "JSON 내보내기 폴더를 선택하세요.";
+                dlg.Description = $"{GetFormatName(format)} 내보내기 루트 폴더를 선택하세요.";
                 if (dlg.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
 
-                string exportRoot = dlg.SelectedPath;
                 int successCount = 0;
-                List<string> failed = new List<string>();
+                var failures = new List<WzExportFailure>();
+                var resolvers = new Dictionary<Wz_Structure, WzNodeResolver>();
 
-                foreach (var image in images)
+                foreach (Wz_Image image in images)
                 {
-                    string relativePath = image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + ".json";
-                    string targetPath = Path.Combine(exportRoot, relativePath);
-                    if (WzDumpExporter.TryExportImageAsJson(image, targetPath, exportRoot, dumpOptions, out Exception error))
+                    Wz_Structure structure = image.WzFile?.WzStructure;
+                    if (structure == null)
                     {
-                        successCount++;
+                        failures.Add(new WzExportFailure
+                        {
+                            Code = "missing_structure",
+                            SourcePath = image.Node.FullPathToFile,
+                            Stage = "request",
+                            Reason = "원본 WZ 구조를 확인할 수 없습니다.",
+                        });
+                        continue;
                     }
-                    else
+
+                    if (!resolvers.TryGetValue(structure, out WzNodeResolver resolver))
                     {
-                        string message = error?.Message ?? "내보내기에 실패했습니다.";
-                        failed.Add(image.Node.FullPathToFile + ": " + message);
+                        resolver = new WzNodeResolver(structure);
+                        resolvers.Add(structure, resolver);
+                    }
+
+                    if (!resolver.TryResolveExactPath(image.Node.FullPathToFile, out var resolvedNode, out var resolutionFailure))
+                    {
+                        failures.Add(ConvertResolutionFailure(resolutionFailure));
+                        continue;
+                    }
+
+                    using (resolvedNode)
+                    {
+                        WzExportResult result = WzDumpExporter.Export(
+                            resolvedNode.Node,
+                            dlg.SelectedPath,
+                            format,
+                            dumpOptions,
+                            resolvedNode);
+                        if (result.Success)
+                        {
+                            successCount++;
+                        }
+                        else
+                        {
+                            failures.AddRange(result.Failures);
+                        }
                     }
                 }
 
-                string statusMessage = $"JSON로 내보내기 완료: {successCount}개";
-                if (failed.Count > 0)
-                {
-                    statusMessage += $", 실패 {failed.Count}개";
-                }
-                labelItemStatus.Text = statusMessage;
+                string formatName = GetFormatName(format);
+                labelItemStatus.Text = failures.Count == 0
+                    ? $"{formatName}로 내보내기 완료: {successCount}개"
+                    : $"{formatName}로 내보내기 완료: {successCount}개, 실패 {failures.Count}건";
 
-                if (failed.Count > 0)
+                if (failures.Count > 0)
                 {
-                    var preview = string.Join("\r\n", failed.Take(10));
-                    if (failed.Count > 10)
+                    const int previewCount = 8;
+                    string preview = string.Join("\r\n\r\n", failures.Take(previewCount).Select(FormatExportFailure));
+                    if (failures.Count > previewCount)
                     {
-                        preview += "\r\n...";
+                        preview += "\r\n\r\n...";
                     }
-                    MessageBoxEx.Show("일부 항목을 내보내지 못했습니다:\r\n" + preview, "오류");
+                    MessageBoxEx.Show($"내보내기 실패 {failures.Count}건\r\n\r\n{preview}", "오류");
                 }
             }
         }
 
-        private bool TryGetSingleImageExportTargetPath(Wz_Image image, string extension, DumpingOptions dumpOptions, string folderDescription, out string targetPath, out string exportRoot)
+        private static WzExportFailure ConvertResolutionFailure(WzResolutionFailure failure)
         {
-            targetPath = null;
-            exportRoot = null;
-
-            if (dumpOptions?.PreserveFullPathForSingleImage == true)
+            if (failure == null)
             {
-                using (var dlg = new FolderBrowserDialog())
+                return new WzExportFailure
                 {
-                    dlg.Description = folderDescription;
-                    if (dlg.ShowDialog() != DialogResult.OK)
-                    {
-                        return false;
-                    }
-
-                    exportRoot = dlg.SelectedPath;
-                    targetPath = Path.Combine(exportRoot, BuildDumpRelativePath(image, extension));
-                    return true;
-                }
+                    Code = "resolution_failed",
+                    Stage = "path",
+                    Reason = "노드를 해석하지 못했습니다.",
+                };
             }
 
-            using (var dlg = new SaveFileDialog())
+            return new WzExportFailure
             {
-                dlg.DefaultExt = extension;
-                dlg.Filter = extension == ".xml" ? "XML (*.xml)|*.xml" : "JSON (*.json)|*.json";
-                ConfigureDumpSaveDialog(dlg, image, extension);
-                if (dlg.ShowDialog() != DialogResult.OK)
-                {
-                    return false;
-                }
-
-                targetPath = dlg.FileName;
-                exportRoot = Path.GetDirectoryName(dlg.FileName);
-                if (string.IsNullOrEmpty(exportRoot))
-                {
-                    exportRoot = Directory.GetCurrentDirectory();
-                }
-
-                return true;
-            }
+                Code = failure.Code,
+                SourcePath = failure.SourcePath,
+                LinkType = failure.LinkType,
+                LinkPath = failure.LinkPath,
+                TargetPath = failure.TargetPath,
+                TargetWzFiles = failure.TargetWzFiles,
+                Stage = failure.Stage,
+                Reason = failure.Reason,
+                SourceWasLinkStub = failure.SourceWasLinkStub,
+            };
         }
 
-        private static void ConfigureDumpSaveDialog(SaveFileDialog dialog, Wz_Image image, string extension)
+        private static string FormatExportFailure(WzExportFailure failure)
         {
-            string relativePath = BuildDumpRelativePath(image, extension);
-            string relativeDirectory = Path.GetDirectoryName(relativePath);
-            if (!string.IsNullOrEmpty(relativeDirectory))
+            var lines = new List<string>
             {
-                string initialDirectory = Path.Combine(Directory.GetCurrentDirectory(), relativeDirectory);
-                Directory.CreateDirectory(initialDirectory);
-                dialog.InitialDirectory = initialDirectory;
+                $"[{failure.Code ?? "export_failed"}] {failure.SourcePath ?? "(경로 없음)"}",
+                $"단계: {failure.Stage ?? "unknown"}",
+            };
+            if (!string.IsNullOrEmpty(failure.LinkType) || !string.IsNullOrEmpty(failure.LinkPath))
+            {
+                lines.Add($"링크: {failure.LinkType ?? "unknown"} {failure.LinkPath ?? "(없음)"}");
             }
-
-            dialog.FileName = Path.GetFileName(relativePath);
+            if (!string.IsNullOrEmpty(failure.TargetPath))
+            {
+                lines.Add("대상: " + failure.TargetPath);
+            }
+            if (failure.TargetWzFiles != null && failure.TargetWzFiles.Count > 0)
+            {
+                lines.Add("WZ: " + string.Join(", ", failure.TargetWzFiles));
+            }
+            lines.Add("원인: " + (failure.Reason ?? "알 수 없는 오류"));
+            return string.Join("\r\n", lines);
         }
 
-        private static string BuildDumpRelativePath(Wz_Image image, string extension)
-        {
-            return image.Node.FullPathToFile.Replace('\\', Path.DirectorySeparatorChar) + extension;
-        }
+        private static string GetFormatName(WzDumpFormat format) => format == WzDumpFormat.Xml ? "XML" : "JSON";
 
         #endregion
 

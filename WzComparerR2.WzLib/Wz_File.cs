@@ -85,6 +85,7 @@ namespace WzComparerR2.WzLib
         public bool IsSubDir
         {
             get { return this.isSubDir; }
+            internal set { this.isSubDir = value; }
         }
 
         public Wz_Type Type

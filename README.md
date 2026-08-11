@@ -37,44 +37,69 @@ Clone repository with submodules.
 # Compile
 - vs2022 or higher/.net 8 SDK
 
-# CLI JSON Export
-- `WzComparerR2.CLI` is intended for automation that already knows which WZ path should be exported.
-- The CLI does **not** scan existing `.img.json` files or decide which dumps should be replaced.
-- The primary workflow is a stateful session that loads `Base.wz` once and then serves repeated exact-path export requests.
-- Supported v1 targets are exact image roots such as `Mob/8880450.img` and exact in-image subnodes such as `Mob/8880450.img/info`.
+# CLI Dump Export
 
-One-shot export:
+`WzComparerR2.CLI` exports an exact logical WZ path. The recommended workflow is a stateful session that loads `Base.wz` once and accepts JSON Lines requests. Image roots, in-image subnodes, `_Canvas` nodes, and individual binary resource nodes are supported.
 
-```sh
-dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base.wz" --path "Mob/8880450.img" --output "D:/MyApp/public/wz/Mob/8880450.img.json"
+`--output` and the JSONL `output` property always name an output root directory. Documents and external resources retain their logical WZ paths below that root:
+
+```text
+<output>/<requested logical path>.json|xml
+<output>/<resolved resource logical path>.<extension>
 ```
 
-Dumping options:
-- `--dump-raw` / `dumpRaw`: embed raw binary payloads into the JSON as Base64. This is mainly for `png`, `sound`, `rawdata`, and `video` nodes, and can increase memory usage and file size substantially.
-- `--dump-external` / `dumpExternal`: export binary resources as external files next to the JSON tree instead of embedding them.
-- `--leave-reference` / `leaveReference`: when external files are exported, keep their relative file path in the JSON output via `file` or `files` metadata.
-- `--omit-redundant-canvas-artifacts` / `omitRedundantCanvasArtifacts`: for merged image exports such as `Skill/000.img` plus `Skill/_Canvas/000.img`, omit the placeholder `_Canvas/*.img` dump file and suppress exported `.png` files for non-`_Canvas` images.
-- `--preserve-full-path-for-single-image` / `preserveFullPathForSingleImage`: keep the full logical path for a single `.img` export. With this option, `--output` may be either the final preserved `.json` path or an export root directory.
+An `_Canvas` subtree or an individual PNG, Sound, RawData, or Video request writes only resources and returns `documentWritten=false`. It does not create a redundant `_Canvas` document.
 
-JSON defaults are `dumpRaw=false`, `dumpExternal=false`, `leaveReference=false`, `omitRedundantCanvasArtifacts=false`, and `preserveFullPathForSingleImage=false`.
+One-shot examples:
+
+```sh
+dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base/Base.wz" --path "Mob/8880450.img" --output "D:/MyApp/public/wz" --dump-external --leave-reference
+dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base/Base.wz" --path "Skill/FieldSkill.img/100029" --output "D:/MyApp/public/wz" --format xml --dump-external
+```
+
+Options:
+
+- `--format json|xml` / `format`: document format. The default is `json`.
+- `--dump-raw` / `dumpRaw`: embed PNG, Sound, RawData, and Video payloads in the document.
+- `--dump-external` / `dumpExternal`: resolve `source`, `_inlink`, `_outlink`, and UOL chains and save the final resources at their resolved logical paths.
+- `--leave-reference` / `leaveReference`: record resolved external paths in `file` or `files` metadata.
+
+`dumpRaw` and `dumpExternal` are mutually exclusive. `leaveReference` is valid only with `dumpExternal`. With neither dump mode enabled, the export is metadata-only and does not force external link resolution.
 
 Session mode:
 
 ```sh
-dotnet run --project WzComparerR2.CLI -- session --base "D:/MapleStory/Data/Base.wz"
+dotnet run --project WzComparerR2.CLI -- session --base "D:/MapleStory/Data/Base/Base.wz"
 ```
 
-Session stdin protocol uses one JSON object per line:
+The session reads one JSON object per line and writes one JSON response per line:
 
 ```json
-{"command":"export","path":"Mob/8880450.img","output":"D:/MyApp/public/wz/Mob/8880450.img.json"}
-{"command":"export","path":"Skill/000.img","output":"D:/MyApp/public/wz/Skill/000.img.json","dumpExternal":true,"omitRedundantCanvasArtifacts":true,"preserveFullPathForSingleImage":true}
-{"command":"export","path":"Skill/MobSkill/100.img","output":"D:/MyApp/public/wz/Skill/MobSkill/100.img.json","omitRedundantCanvasArtifacts":true}
-{"command":"export","path":"Mob/8880450.img/info","output":"D:/MyApp/public/wz/Mob/8880450.info.json"}
+{"requestId":"mob","command":"export","path":"Mob/8880450.img","output":"D:/MyApp/public/wz","dumpExternal":true,"leaveReference":true}
+{"requestId":"field-skill","command":"export","path":"Skill/FieldSkill.img/100029/level/1/areaWarning/0","output":"D:/MyApp/public/wz","format":"xml","dumpExternal":true}
+{"requestId":"sound","command":"export","path":"Sound/Mob.img/8880450/Attack1","output":"D:/MyApp/public/wz","dumpExternal":true}
 {"command":"quit"}
 ```
 
-Responses are also emitted as single-line JSON objects so another application can detect success or failure without scraping human-readable text.
+One-shot and session exports use the same success fields:
+
+```json
+{"ok":true,"requestId":"mob","command":"export","path":"Mob/8880450.img","output":"D:\\MyApp\\public\\wz","format":"json","document":"D:\\MyApp\\public\\wz\\Mob\\8880450.img.json","documentWritten":true,"externalFileCount":42,"durationMs":298}
+```
+
+An unresolved link, type mismatch, unsupported resource, or decode error fails the request instead of writing a link stub. Failures contain both a short summary and structured diagnostics:
+
+```json
+{"ok":false,"requestId":"field-skill","command":"export","path":"Skill/FieldSkill.img/100029","output":"D:\\MyApp\\public\\wz","format":"json","error":"Path segment not found: 0","failures":[{"code":"path_not_found","sourcePath":"Skill/FieldSkill.img/100029/level/1/areaWarning/0/0","linkType":"_outlink","linkPath":"Skill/_Canvas/FieldSkill.img/100029/level/1/areaWarning/0/0","targetPath":"Skill/_Canvas/FieldSkill.img/100029/level/1/areaWarning/0/0","targetWzFiles":["D:\\MapleStory\\Data\\Skill\\_Canvas\\_Canvas.wz"],"stage":"path","reason":"Path segment not found: 0","sourceWasLinkStub":true}],"durationMs":31}
+```
+
+Files are resolved and decoded in a temporary location before being committed. A failed request does not publish partial files or replace existing output. Do not run multiple exporters against the same output root concurrently; output-root process locking is outside the CLI contract.
+
+The synthetic resolver and exporter regression suite can be run without MapleStory data:
+
+```sh
+dotnet run --project WzComparerR2.WzLib.Tests -c Release
+```
 
 # Credits and Acknowledgement
 - **Fiel** ([Southperry](http://www.southperry.net))  wz文件读取代码改造自WzExtract 以及WzPatcher
