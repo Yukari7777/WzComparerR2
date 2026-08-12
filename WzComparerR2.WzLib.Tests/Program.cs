@@ -21,6 +21,7 @@ namespace WzComparerR2.WzLib.Tests
             Run(nameof(DistinguishesLinkStubsFromUnlinkedOneByOneResources), DistinguishesLinkStubsFromUnlinkedOneByOneResources);
             Run(nameof(ValidatesOptionCombinations), ValidatesOptionCombinations);
             Run(nameof(WritesJsonAndXmlToCanonicalPaths), WritesJsonAndXmlToCanonicalPaths);
+            Run(nameof(EncodesPortableOutputPaths), EncodesPortableOutputPaths);
             Run(nameof(PreservesExistingOutputWhenPlanningFails), PreservesExistingOutputWhenPlanningFails);
 
             if (Failures.Count == 0)
@@ -221,6 +222,24 @@ namespace WzComparerR2.WzLib.Tests
             {
                 Directory.Delete(outputRoot, true);
             }
+        }
+
+        private static void EncodesPortableOutputPaths()
+        {
+            MethodInfo method = typeof(WzDumpExporter).GetMethod(
+                "EncodeRelativeOutputPath",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert(method != null, "Portable path encoder was not found.");
+            Func<string, string> encode = value => (string)method.Invoke(null, new object[] { value });
+
+            Assert(encode("Etc/_Canvas/BossKaring.img/normal/0.png")
+                == "Etc/_Canvas/BossKaring.img/normal/0.png", "Safe path was changed.");
+            Assert(encode("Etc/_Canvas/BossKaring.img/button:ready/0.png")
+                == "Etc/_Canvas/BossKaring.img/button%3Aready/0.png", "Colon was not encoded.");
+            Assert(encode("Etc/100%/trail./0.png")
+                == "Etc/100%25/trail%2E/0.png", "Percent or trailing dot was not encoded.");
+            Assert(encode("Etc/CON/file.png")
+                == "Etc/%43ON/file.png", "Reserved Windows file name was not encoded.");
         }
 
         private static WzExportResult AssertExportSuccess(Wz_Structure structure, Wz_Node document, DumpingOptions options)

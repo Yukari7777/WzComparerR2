@@ -64,6 +64,11 @@ Options:
 - `--dump-external` / `dumpExternal`: resolve `source`, `_inlink`, `_outlink`, and UOL chains and save the final resources at their resolved logical paths.
 - `--leave-reference` / `leaveReference`: record resolved external paths in `file` or `files` metadata.
 
+External file path segments use reversible UTF-8 percent encoding for `%`,
+Windows-invalid characters, trailing dots or spaces, and reserved Windows file
+names. Logical WZ links remain unchanged; `file` and `files` contain the actual
+portable output paths (for example, `button:ready` becomes `button%3Aready`).
+
 `dumpRaw` and `dumpExternal` are mutually exclusive. `leaveReference` is valid only with `dumpExternal`. With neither dump mode enabled, the export is metadata-only and does not force external link resolution.
 
 Session mode:

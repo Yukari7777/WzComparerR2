@@ -58,7 +58,7 @@ namespace WzComparerR2.WzLib
             string documentPath;
             try
             {
-                documentPath = GetSafeOutputPath(result.OutputRoot, logicalPath + extension);
+                documentPath = GetSafeOutputPath(result.OutputRoot, EncodeRelativeOutputPath(logicalPath + extension));
             }
             catch (Exception ex)
             {
@@ -110,7 +110,7 @@ namespace WzComparerR2.WzLib
 
                 if (result.DocumentWritten)
                 {
-                    string stagedDocumentPath = GetSafeOutputPath(stagingRoot, logicalPath + extension);
+                    string stagedDocumentPath = GetSafeOutputPath(stagingRoot, EncodeRelativeOutputPath(logicalPath + extension));
                     WriteDocument(node, stagedDocumentPath, format, dumpOptions, context);
                 }
 
@@ -324,17 +324,18 @@ namespace WzComparerR2.WzLib
         private static IReadOnlyList<string> WriteExternalResource(Wz_Node node, string stagingRoot)
         {
             string logicalPath = NormalizeLogicalPath(node.FullPathToFile);
+            string outputPath = EncodeRelativeOutputPath(logicalPath);
             if (node.Value is Wz_Png png)
             {
                 int pageCount = Math.Max(png.ActualPages, 1);
                 var files = new List<string>(pageCount);
                 for (int i = 0; i < pageCount; i++)
                 {
-                    string pagePath = logicalPath + ".png";
+                    string pagePath = outputPath + ".png";
                     if (i > 0)
                     {
-                        string parent = Path.GetDirectoryName(logicalPath.Replace('/', Path.DirectorySeparatorChar));
-                        string fileName = Path.GetFileName(logicalPath);
+                        string parent = Path.GetDirectoryName(outputPath.Replace('/', Path.DirectorySeparatorChar));
+                        string fileName = Path.GetFileName(outputPath);
                         pagePath = NormalizeLogicalPath(Path.Combine(parent ?? string.Empty, i.ToString(), fileName + ".png"));
                     }
                     string filePath = GetSafeOutputPath(stagingRoot, pagePath);
@@ -382,7 +383,7 @@ namespace WzComparerR2.WzLib
                 throw new InvalidOperationException($"Unsupported external resource type: {node.Value?.GetType().Name ?? "null"}");
             }
 
-            string relativePath = logicalPath + extension;
+            string relativePath = outputPath + extension;
             string targetPath = GetSafeOutputPath(stagingRoot, relativePath);
             EnsureParentDirectory(targetPath);
             File.WriteAllBytes(targetPath, data);
@@ -587,6 +588,83 @@ namespace WzComparerR2.WzLib
         private static string NormalizeLogicalPath(string path)
         {
             return (path ?? string.Empty).Replace('\\', '/').Trim('/');
+        }
+
+        private static string EncodeRelativeOutputPath(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+            {
+                throw new InvalidOperationException("Export path must be a non-empty relative path.");
+            }
+
+            var encoded = new List<string>();
+            foreach (string segment in relativePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (segment == "." || segment == "..")
+                {
+                    throw new InvalidOperationException($"Invalid export path segment: {segment}");
+                }
+                encoded.Add(EncodeOutputPathSegment(segment));
+            }
+            if (encoded.Count == 0)
+            {
+                throw new InvalidOperationException("Export path must contain at least one segment.");
+            }
+            return string.Join("/", encoded);
+        }
+
+        private static string EncodeOutputPathSegment(string segment)
+        {
+            var builder = new StringBuilder(segment.Length);
+            for (int i = 0; i < segment.Length; i++)
+            {
+                char value = segment[i];
+                bool trailingDotOrSpace = i == segment.Length - 1 && (value == '.' || value == ' ');
+                if (value == '%' || value < 32 || "<>:\"/\\|?*".IndexOf(value) >= 0 || trailingDotOrSpace)
+                {
+                    AppendPercentEncoded(builder, value);
+                }
+                else
+                {
+                    builder.Append(value);
+                }
+            }
+
+            string encoded = builder.ToString();
+            if (IsReservedWindowsFileName(segment))
+            {
+                builder.Clear();
+                AppendPercentEncoded(builder, segment[0]);
+                builder.Append(encoded.Substring(1));
+                encoded = builder.ToString();
+            }
+            return encoded;
+        }
+
+        private static void AppendPercentEncoded(StringBuilder builder, char value)
+        {
+            foreach (byte item in Encoding.UTF8.GetBytes(new[] { value }))
+            {
+                builder.Append('%');
+                builder.Append(item.ToString("X2"));
+            }
+        }
+
+        private static bool IsReservedWindowsFileName(string segment)
+        {
+            string stem = segment.TrimEnd(' ', '.').Split('.')[0];
+            if (string.Equals(stem, "CON", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stem, "PRN", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stem, "AUX", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stem, "NUL", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            return stem.Length == 4
+                && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                    || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
+                && stem[3] >= '1'
+                && stem[3] <= '9';
         }
 
         private static string GetSafeOutputPath(string root, string relativePath)
