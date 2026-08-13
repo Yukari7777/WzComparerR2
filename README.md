@@ -63,6 +63,7 @@ Options:
 - `--dump-raw` / `dumpRaw`: embed PNG, Sound, RawData, and Video payloads in the document.
 - `--dump-external` / `dumpExternal`: resolve `source`, `_inlink`, `_outlink`, and UOL chains and save the final resources at their resolved logical paths.
 - `--leave-reference` / `leaveReference`: record resolved external paths in `file` or `files` metadata.
+- `--include-png-dimensions` / `includePngDimensions`: opt in to `@width` and `@height` on JSON PNG nodes. Disabled by default to keep metadata compact.
 
 External file path segments use reversible UTF-8 percent encoding for `%`,
 Windows-invalid characters, trailing dots or spaces, and reserved Windows file

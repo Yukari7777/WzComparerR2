@@ -8,6 +8,8 @@ namespace WzComparerR2.WzLib
 
         public bool LeaveReference { get; set; }
 
+        public bool IncludePngDimensions { get; set; }
+
         public DumpingOptions Clone()
         {
             return new DumpingOptions
@@ -15,6 +17,7 @@ namespace WzComparerR2.WzLib
                 DumpRaw = this.DumpRaw,
                 DumpExternal = this.DumpExternal,
                 LeaveReference = this.LeaveReference,
+                IncludePngDimensions = this.IncludePngDimensions,
             };
         }
 
@@ -25,6 +28,7 @@ namespace WzComparerR2.WzLib
                 DumpRaw = false,
                 DumpExternal = false,
                 LeaveReference = false,
+                IncludePngDimensions = false,
             };
         }
     }

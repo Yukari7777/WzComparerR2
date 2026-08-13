@@ -752,6 +752,8 @@ namespace WzComparerR2.WzLib
         private const string JsonFormatKey = JsonMetadataPrefix + "format";
         private const string JsonScaleKey = JsonMetadataPrefix + "scale";
         private const string JsonPagesKey = JsonMetadataPrefix + "pages";
+        private const string JsonWidthKey = JsonMetadataPrefix + "width";
+        private const string JsonHeightKey = JsonMetadataPrefix + "height";
         private const string JsonLengthKey = JsonMetadataPrefix + "length";
         private const string JsonMsKey = JsonMetadataPrefix + "ms";
         private const string JsonChannelsKey = JsonMetadataPrefix + "channels";
@@ -793,6 +795,11 @@ namespace WzComparerR2.WzLib
                 WriteNodeAsObject(node, writer, dumpRaw, leaveRef, () =>
                 {
                     writer.WriteString(JsonTypeKey, "png");
+                    if (context?.IncludePngDimensions == true)
+                    {
+                        writer.WriteNumber(JsonWidthKey, png.Width);
+                        writer.WriteNumber(JsonHeightKey, png.Height);
+                    }
                     if (!(png.Width == 1 && png.Height == 1))
                     {
                         writer.WriteNumber(JsonFormatKey, (int)png.Format);

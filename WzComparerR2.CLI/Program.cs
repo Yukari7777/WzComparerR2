@@ -21,6 +21,7 @@ namespace WzComparerR2.CLI
             "--dump-raw",
             "--dump-external",
             "--leave-reference",
+            "--include-png-dimensions",
         };
 
         private static readonly HashSet<string> ValueOptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -317,6 +318,7 @@ namespace WzComparerR2.CLI
                 DumpRaw = ReadOptionalBoolean(root, "dumpRaw"),
                 DumpExternal = ReadOptionalBoolean(root, "dumpExternal"),
                 LeaveReference = ReadOptionalBoolean(root, "leaveReference"),
+                IncludePngDimensions = ReadOptionalBoolean(root, "includePngDimensions"),
             };
         }
 
@@ -405,6 +407,7 @@ namespace WzComparerR2.CLI
                 DumpRaw = flags.Contains("--dump-raw"),
                 DumpExternal = flags.Contains("--dump-external"),
                 LeaveReference = flags.Contains("--leave-reference"),
+                IncludePngDimensions = flags.Contains("--include-png-dimensions"),
             };
         }
 
@@ -452,11 +455,11 @@ namespace WzComparerR2.CLI
         {
             writer.WriteLine("Usage:");
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
-            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference]");
+            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
             writer.WriteLine();
             writer.WriteLine("Session stdin protocol:");
             writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img\",\"output\":\"D:/MyApp/public/wz\",\"dumpExternal\":true}");
-            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz\",\"format\":\"xml\"}");
+            writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz\",\"format\":\"xml\",\"includePngDimensions\":true}");
             writer.WriteLine("  {\"command\":\"quit\"}");
         }
 

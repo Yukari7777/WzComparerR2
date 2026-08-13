@@ -79,6 +79,8 @@ namespace WzComparerR2.WzLib
 
         public static WzDumpSerializationContext Current => current;
 
+        public bool IncludePngDimensions { get; set; }
+
         public IDisposable Activate()
         {
             WzDumpSerializationContext previous = current;

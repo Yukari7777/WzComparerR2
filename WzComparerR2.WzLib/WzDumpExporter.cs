@@ -69,7 +69,10 @@ namespace WzComparerR2.WzLib
             result.DocumentWritten = !(dumpOptions.DumpExternal && (node.IsCanvasImage() || IsResourceValue(node.Value)));
             result.DocumentPath = result.DocumentWritten ? documentPath : null;
 
-            var context = new WzDumpSerializationContext();
+            var context = new WzDumpSerializationContext
+            {
+                IncludePngDimensions = dumpOptions.IncludePngDimensions,
+            };
             var resourceTasks = new List<ResourceTask>();
             if (dumpOptions.DumpRaw || dumpOptions.DumpExternal)
             {

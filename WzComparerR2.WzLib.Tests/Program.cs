@@ -22,6 +22,7 @@ namespace WzComparerR2.WzLib.Tests
             Run(nameof(ValidatesOptionCombinations), ValidatesOptionCombinations);
             Run(nameof(WritesJsonAndXmlToCanonicalPaths), WritesJsonAndXmlToCanonicalPaths);
             Run(nameof(EncodesPortableOutputPaths), EncodesPortableOutputPaths);
+            Run(nameof(WritesPngDimensions), WritesPngDimensions);
             Run(nameof(PreservesExistingOutputWhenPlanningFails), PreservesExistingOutputWhenPlanningFails);
 
             if (Failures.Count == 0)
@@ -240,6 +241,37 @@ namespace WzComparerR2.WzLib.Tests
                 == "Etc/100%25/trail%2E/0.png", "Percent or trailing dot was not encoded.");
             Assert(encode("Etc/CON/file.png")
                 == "Etc/%43ON/file.png", "Reserved Windows file name was not encoded.");
+        }
+
+        private static void WritesPngDimensions()
+        {
+            Wz_Structure structure = CreateStructure(out Wz_Node document);
+            document.Nodes.Add(new Wz_Node("canvas")
+            {
+                Value = new Wz_Png(17, 23, 0, Wz_TextureFormat.ARGB8888, 0, 0, 0, 0, null),
+            });
+            string outputRoot = CreateTempDirectory();
+            try
+            {
+                WzExportResult compactResult = Export(structure, document, DumpingOptions.CreateDefaults(), outputRoot);
+                Assert(compactResult.Success, compactResult.Failures.FirstOrDefault()?.Reason ?? "PNG metadata export failed.");
+                string compactJson = File.ReadAllText(Path.Combine(outputRoot, "Doc.img.json"));
+                Assert(!compactJson.Contains("\"@width\""), "PNG width was serialized without opt-in.");
+                Assert(!compactJson.Contains("\"@height\""), "PNG height was serialized without opt-in.");
+
+                WzExportResult result = Export(structure, document, new DumpingOptions
+                {
+                    IncludePngDimensions = true,
+                }, outputRoot);
+                Assert(result.Success, result.Failures.FirstOrDefault()?.Reason ?? "PNG metadata export failed.");
+                string json = File.ReadAllText(Path.Combine(outputRoot, "Doc.img.json"));
+                Assert(json.Contains("\"@width\": 17"), "PNG width was not serialized.");
+                Assert(json.Contains("\"@height\": 23"), "PNG height was not serialized.");
+            }
+            finally
+            {
+                Directory.Delete(outputRoot, true);
+            }
         }
 
         private static WzExportResult AssertExportSuccess(Wz_Structure structure, Wz_Node document, DumpingOptions options)
