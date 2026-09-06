@@ -7,12 +7,13 @@ using WzComparerR2.WzLib;
 
 namespace WzComparerR2.WzLib.Tests
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static readonly List<string> Failures = new List<string>();
 
         private static int Main()
         {
+            RunSearchTests();
             Run(nameof(ResolvesCaseInsensitiveSlashNormalizedPaths), ResolvesCaseInsensitiveSlashNormalizedPaths);
             Run(nameof(RejectsPathTraversal), RejectsPathTraversal);
             Run(nameof(ResolvesSourceInlinkOutlinkAndUolChains), ResolvesSourceInlinkOutlinkAndUolChains);

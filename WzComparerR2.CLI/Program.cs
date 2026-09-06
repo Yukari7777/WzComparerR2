@@ -10,7 +10,7 @@ using WzComparerR2.WzLib;
 
 namespace WzComparerR2.CLI
 {
-    internal static class Program
+    internal static partial class Program
     {
         private const int ExitSuccess = 0;
         private const int ExitUsageError = 2;
@@ -54,6 +54,8 @@ namespace WzComparerR2.CLI
             {
                 case "session":
                     return RunSession(args.Skip(1).ToArray());
+                case "search":
+                    return RunSearchCommand(args.Skip(1).ToArray());
                 case "export":
                     return RunOneShotExport(args.Skip(1).ToArray());
                 case "render-spine":
@@ -287,6 +289,9 @@ namespace WzComparerR2.CLI
                     {
                         case "ping":
                             WriteJsonResponse(new { ok = true, requestId, command = "ping" });
+                            return SessionCommandResult.Continue;
+                        case "search":
+                            HandleSearchCommand(session, root, requestId);
                             return SessionCommandResult.Continue;
                         case "quit":
                         case "exit":
@@ -628,6 +633,7 @@ namespace WzComparerR2.CLI
         private static void WriteUsage(TextWriter writer)
         {
             writer.WriteLine("Usage:");
+            WriteSearchUsage(writer);
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
             writer.WriteLine("  WzComparerR2.CLI export [--base <Base.wz>] --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
             writer.WriteLine("  WzComparerR2.CLI render-spine [--base <Base.wz>] --path <logical-path> --output <output-root> [--animation <name>] [--fps <1-120>]");
@@ -646,7 +652,7 @@ namespace WzComparerR2.CLI
             Exit,
         }
 
-        private sealed class LoadedWzSession : IDisposable
+        private sealed partial class LoadedWzSession : IDisposable
         {
             private readonly Wz_Structure structure;
             private readonly WzNodeResolver resolver;

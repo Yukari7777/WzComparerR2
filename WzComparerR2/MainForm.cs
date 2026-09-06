@@ -37,6 +37,7 @@ namespace WzComparerR2
         public MainForm()
         {
             InitializeComponent();
+            comboBoxItem1.Items.Add(openWzSearchCriterion);
 #if NET6_0_OR_GREATER
             // https://learn.microsoft.com/en-us/dotnet/core/compatibility/fx-core#controldefaultfont-changed-to-segoe-ui-9pt
             this.Font = new Font("굴림", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(129)));
@@ -2750,6 +2751,11 @@ namespace WzComparerR2
         {
             if (string.IsNullOrEmpty(textBoxItemSearchWz.Text))
                 return;
+            if (comboBoxItem1.SelectedItem == openWzSearchCriterion)
+            {
+                SearchAllOpenWz();
+                return;
+            }
             if (comboBoxItem1.SelectedIndex == -1)
             {
                 comboBoxItem1.SelectedIndex = 0;
