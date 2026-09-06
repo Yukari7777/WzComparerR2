@@ -57,9 +57,32 @@ dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base/
 dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base/Base.wz" --path "Skill/FieldSkill.img/100029" --output "D:/MyApp/public/wz" --format xml --dump-external
 ```
 
+For one-shot exports, `--base` may be omitted when `<output>/BASE` contains the
+path to `Base.wz`. A relative path in `BASE` is resolved from the output root.
+An explicit `--base` takes precedence.
+
+```text
+D:/MapleStory/Data/Base/Base.wz
+```
+
+```sh
+dotnet run --project WzComparerR2.CLI -- export --path "Mob/8880450.img" --output "D:/MyApp/public/wz"
+```
+
 Options:
 
 - `--format json|xml` / `format`: document format. The default is `json`.
+
+Spine 4.1 map groups can be rasterized with the existing Common Spine loader and
+MonoGame renderer. The command writes a stable-bound PNG sequence and
+`clip.json`; it does not dump the skeleton into the browser asset set.
+Linked atlas textures are resolved through the CLI WZ resolver and remain loaded
+through rasterization. Missing atlas pages use the GUI renderer's empty-texture
+behavior. PNG encoding preserves the recorder's BGRA channels and straight alpha.
+
+```sh
+dotnet run --project WzComparerR2.CLI -- render-spine --path "Map/Obj/bossLimbo.img/boss/2phaseMiddle/0" --animation "01_Hold" --output "D:/MyApp/public/wz" --fps 30
+```
 - `--dump-raw` / `dumpRaw`: embed PNG, Sound, RawData, and Video payloads in the document.
 - `--dump-external` / `dumpExternal`: resolve `source`, `_inlink`, `_outlink`, and UOL chains and save the final resources at their resolved logical paths.
 - `--leave-reference` / `leaveReference`: record resolved external paths in `file` or `files` metadata.

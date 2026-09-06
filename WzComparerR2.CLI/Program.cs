@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using WzComparerR2.Animation;
 using WzComparerR2.WzLib;
 
 namespace WzComparerR2.CLI
@@ -15,6 +16,7 @@ namespace WzComparerR2.CLI
         private const int ExitUsageError = 2;
         private const int ExitLoadError = 3;
         private const int ExitExportError = 4;
+        private const int DefaultSpineFps = 30;
 
         private static readonly HashSet<string> DumpFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -30,6 +32,8 @@ namespace WzComparerR2.CLI
             "--path",
             "--output",
             "--format",
+            "--animation",
+            "--fps",
         };
 
         private static readonly JsonSerializerOptions ResponseJsonOptions = new JsonSerializerOptions
@@ -52,6 +56,8 @@ namespace WzComparerR2.CLI
                     return RunSession(args.Skip(1).ToArray());
                 case "export":
                     return RunOneShotExport(args.Skip(1).ToArray());
+                case "render-spine":
+                    return RunOneShotSpineExport(args.Skip(1).ToArray());
                 case "help":
                 case "--help":
                 case "-h":
@@ -136,12 +142,20 @@ namespace WzComparerR2.CLI
                 return ExitUsageError;
             }
 
-            string basePath = GetRequiredOption(namedOptions, "--base");
             string logicalPath = GetRequiredOption(namedOptions, "--path");
             string outputRoot = GetRequiredOption(namedOptions, "--output");
-            if (basePath == null || logicalPath == null || outputRoot == null)
+            if (logicalPath == null || outputRoot == null)
             {
-                WriteError("One-shot export requires --base, --path, and --output.");
+                WriteError("One-shot export requires --path and --output.");
+                WriteUsage(Console.Error);
+                return ExitUsageError;
+            }
+            string basePath = namedOptions.TryGetValue("--base", out var explicitBasePath)
+                ? explicitBasePath
+                : ReadBasePathFromOutput(outputRoot, out parseError);
+            if (basePath == null)
+            {
+                WriteError(parseError);
                 WriteUsage(Console.Error);
                 return ExitUsageError;
             }
@@ -197,6 +211,60 @@ namespace WzComparerR2.CLI
             }
         }
 
+        private static int RunOneShotSpineExport(string[] args)
+        {
+            if (!TryParseNamedArguments(args, out var namedOptions, out var flags, out var parseError))
+            {
+                WriteError(parseError);
+                WriteUsage(Console.Error);
+                return ExitUsageError;
+            }
+            string logicalPath = GetRequiredOption(namedOptions, "--path");
+            string outputRoot = GetRequiredOption(namedOptions, "--output");
+            if (logicalPath == null || outputRoot == null || flags.Count > 0)
+            {
+                WriteError("One-shot Spine export requires --path and --output and accepts no dump flags.");
+                return ExitUsageError;
+            }
+            string basePath = namedOptions.TryGetValue("--base", out var explicitBasePath)
+                ? explicitBasePath
+                : ReadBasePathFromOutput(outputRoot, out parseError);
+            if (basePath == null)
+            {
+                WriteError(parseError);
+                return ExitUsageError;
+            }
+            if (!TryReadFps(namedOptions.TryGetValue("--fps", out var fpsText) ? fpsText : null, out var fps, out parseError))
+            {
+                WriteError(parseError);
+                return ExitUsageError;
+            }
+            string animation = namedOptions.TryGetValue("--animation", out var animationValue) ? animationValue : null;
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                using var session = LoadedWzSession.Open(basePath);
+                var result = session.RenderSpine(logicalPath, outputRoot, animation, fps);
+                stopwatch.Stop();
+                WriteSpineResponse(null, logicalPath, outputRoot, result, stopwatch.ElapsedMilliseconds);
+                return ExitSuccess;
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                WriteJsonResponse(new
+                {
+                    ok = false,
+                    command = "render-spine",
+                    path = logicalPath,
+                    error = ex.Message,
+                    detail = ex.ToString(),
+                    durationMs = stopwatch.ElapsedMilliseconds,
+                });
+                return ExitExportError;
+            }
+        }
+
         private static SessionCommandResult HandleSessionCommand(LoadedWzSession session, string line)
         {
             string requestId = null;
@@ -226,6 +294,9 @@ namespace WzComparerR2.CLI
                             return SessionCommandResult.Exit;
                         case "export":
                             HandleExportCommand(session, root, requestId);
+                            return SessionCommandResult.Continue;
+                        case "render-spine":
+                            HandleSpineCommand(session, root, requestId);
                             return SessionCommandResult.Continue;
                         default:
                             WriteJsonResponse(new { ok = false, requestId, command, error = $"Unknown session command: {command}" });
@@ -266,6 +337,62 @@ namespace WzComparerR2.CLI
             }
             stopwatch.Stop();
             WriteExportResponse(requestId, logicalPath, outputRoot, format, result, stopwatch.ElapsedMilliseconds);
+        }
+
+        private static void HandleSpineCommand(LoadedWzSession session, JsonElement root, string requestId)
+        {
+            string logicalPath = GetRequiredString(root, "path");
+            string outputRoot = GetRequiredString(root, "output");
+            string animation = root.TryGetProperty("animation", out var animationElement)
+                ? animationElement.GetString()
+                : null;
+            int fps = root.TryGetProperty("fps", out var fpsElement)
+                ? fpsElement.GetInt32()
+                : DefaultSpineFps;
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                var result = session.RenderSpine(logicalPath, outputRoot, animation, fps);
+                stopwatch.Stop();
+                WriteSpineResponse(requestId, logicalPath, outputRoot, result, stopwatch.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                WriteJsonResponse(new
+                {
+                    ok = false,
+                    requestId,
+                    command = "render-spine",
+                    path = logicalPath,
+                    error = ex.Message,
+                    durationMs = stopwatch.ElapsedMilliseconds,
+                });
+            }
+        }
+
+        private static void WriteSpineResponse(
+            string requestId,
+            string logicalPath,
+            string outputRoot,
+            SpineExportDocument result,
+            long durationMs)
+        {
+            WriteJsonResponse(new
+            {
+                ok = true,
+                requestId,
+                command = "render-spine",
+                path = logicalPath,
+                output = Path.GetFullPath(outputRoot),
+                document = result.DocumentPath,
+                frameCount = result.FrameCount,
+                animation = result.Animation,
+                spineVersion = result.SpineVersion,
+                animationDurationMs = result.DurationMs,
+                fps = result.Fps,
+                durationMs,
+            });
         }
 
         private static void WriteExportResponse(string requestId, string logicalPath, string outputRoot, WzDumpFormat format, WzExportResult result, long durationMs)
@@ -451,15 +578,65 @@ namespace WzComparerR2.CLI
             Console.Error.WriteLine(message);
         }
 
+        private static bool TryReadFps(string value, out int fps, out string error)
+        {
+            if (value == null)
+            {
+                fps = DefaultSpineFps;
+                error = null;
+                return true;
+            }
+            if (!int.TryParse(value, out fps) || fps <= 0 || fps > 120)
+            {
+                error = "--fps must be an integer from 1 through 120.";
+                return false;
+            }
+            error = null;
+            return true;
+        }
+
+        private static string ReadBasePathFromOutput(string outputRoot, out string error)
+        {
+            string configPath = Path.Combine(outputRoot, "BASE");
+            try
+            {
+                if (!File.Exists(configPath))
+                {
+                    error = $"One-shot export requires --base or a BASE file at: {configPath}";
+                    return null;
+                }
+
+                string basePath = File.ReadAllText(configPath).Trim();
+                if (basePath.Length == 0)
+                {
+                    error = $"BASE file is empty: {configPath}";
+                    return null;
+                }
+
+                error = null;
+                return Path.IsPathRooted(basePath)
+                    ? basePath
+                    : Path.GetFullPath(basePath, outputRoot);
+            }
+            catch (Exception ex)
+            {
+                error = $"Failed to read BASE file {configPath}: {ex.Message}";
+                return null;
+            }
+        }
+
         private static void WriteUsage(TextWriter writer)
         {
             writer.WriteLine("Usage:");
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
-            writer.WriteLine("  WzComparerR2.CLI export --base <Base.wz> --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
+            writer.WriteLine("  WzComparerR2.CLI export [--base <Base.wz>] --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
+            writer.WriteLine("  WzComparerR2.CLI render-spine [--base <Base.wz>] --path <logical-path> --output <output-root> [--animation <name>] [--fps <1-120>]");
+            writer.WriteLine("    Without --base, reads the Base.wz path from <output-root>/BASE.");
             writer.WriteLine();
             writer.WriteLine("Session stdin protocol:");
             writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img\",\"output\":\"D:/MyApp/public/wz\",\"dumpExternal\":true}");
             writer.WriteLine("  {\"command\":\"export\",\"path\":\"Mob/8880450.img/info\",\"output\":\"D:/MyApp/public/wz\",\"format\":\"xml\",\"includePngDimensions\":true}");
+            writer.WriteLine("  {\"command\":\"render-spine\",\"path\":\"Map/Obj/bossLimbo.img/boss/2phaseMiddle/0\",\"animation\":\"01_Hold\",\"output\":\"D:/MyApp/public/wz\",\"fps\":30}");
             writer.WriteLine("  {\"command\":\"quit\"}");
         }
 
@@ -543,6 +720,103 @@ namespace WzComparerR2.CLI
                 }
             }
 
+            public SpineExportDocument RenderSpine(
+                string logicalPath,
+                string outputRoot,
+                string animation,
+                int fps)
+            {
+                if (!this.resolver.TryResolveExactPath(logicalPath, out var resolvedNode, out var resolutionFailure))
+                {
+                    throw new InvalidOperationException(resolutionFailure?.Reason ?? "Exact Spine path could not be resolved.");
+                }
+                using (resolvedNode)
+                {
+                    if (!resolvedNode.IsInsideImage)
+                    {
+                        throw new InvalidOperationException("Spine path must point to a node inside an image.");
+                    }
+                    string provisionalAnimation = string.IsNullOrWhiteSpace(animation) ? "default" : animation;
+                    string outputDirectory = BuildSpineOutputDirectory(outputRoot, logicalPath, provisionalAnimation);
+                    var textureScopes = new List<WzNodeResolver.ResolvedNode>();
+                    SpineRasterResult raster;
+                    try
+                    {
+                        raster = SpineFrameExporter.Export(resolvedNode.Node, animation, outputDirectory, fps,
+                            (fullPath, sourceFile) =>
+                            {
+                                if (!this.resolver.TryResolveExactPath(fullPath, out var textureNode, out var failure))
+                                    throw new InvalidOperationException(failure?.Reason ?? $"Spine texture not found: {fullPath}");
+                                textureScopes.Add(textureNode);
+                                return textureNode.Node;
+                            });
+                    }
+                    finally
+                    {
+                        for (int index = textureScopes.Count - 1; index >= 0; index--)
+                            textureScopes[index].Dispose();
+                    }
+                    string sourcePrefix = BuildSpineSourcePrefix(logicalPath, provisionalAnimation);
+                    string documentPath = Path.Combine(outputDirectory, "clip.json");
+                    var document = new
+                    {
+                        version = 1,
+                        source = logicalPath.Replace('\\', '/'),
+                        spineVersion = raster.SpineVersion,
+                        animation = raster.Animation,
+                        loop = true,
+                        durationMs = raster.DurationMs,
+                        fps = raster.Fps,
+                        bounds = new
+                        {
+                            left = raster.Bounds.Left,
+                            top = raster.Bounds.Top,
+                            right = raster.Bounds.Right,
+                            bottom = raster.Bounds.Bottom,
+                        },
+                        frames = raster.Frames.Select(frame => new
+                        {
+                            src = $"{sourcePrefix}/{Path.GetFileNameWithoutExtension(frame.FileName)}",
+                            delay = frame.Delay,
+                            origin = new[] { frame.Origin.X, frame.Origin.Y },
+                        }).ToArray(),
+                    };
+                    File.WriteAllText(documentPath, JsonSerializer.Serialize(document, ResponseJsonOptions));
+                    return new SpineExportDocument
+                    {
+                        DocumentPath = documentPath,
+                        FrameCount = raster.Frames.Count,
+                        Animation = raster.Animation,
+                        SpineVersion = raster.SpineVersion,
+                        DurationMs = raster.DurationMs,
+                        Fps = raster.Fps,
+                    };
+                }
+            }
+
+            private static string BuildSpineOutputDirectory(string outputRoot, string logicalPath, string animation)
+            {
+                var segments = logicalPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length < 3) throw new InvalidOperationException("Spine path must include a WZ section and image.");
+                var parts = new List<string> { outputRoot, segments[0], segments[1], "_Spine" };
+                parts.AddRange(segments.Skip(2));
+                parts.Add(SanitizePathSegment(animation));
+                return Path.Combine(parts.ToArray());
+            }
+
+            private static string BuildSpineSourcePrefix(string logicalPath, string animation)
+            {
+                var segments = logicalPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                return string.Join('/', segments.Take(2)) + "/_Spine/" +
+                    string.Join('/', segments.Skip(2)) + "/" + SanitizePathSegment(animation);
+            }
+
+            private static string SanitizePathSegment(string value)
+            {
+                var invalid = Path.GetInvalidFileNameChars();
+                return new string((value ?? "default").Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+            }
+
             public void Dispose()
             {
                 if (!this.disposed)
@@ -582,6 +856,16 @@ namespace WzComparerR2.CLI
                 }
                 structure.Load(sourcePath, true);
             }
+        }
+
+        private sealed class SpineExportDocument
+        {
+            public string DocumentPath { get; set; }
+            public int FrameCount { get; set; }
+            public string Animation { get; set; }
+            public string SpineVersion { get; set; }
+            public int DurationMs { get; set; }
+            public int Fps { get; set; }
         }
     }
 }
