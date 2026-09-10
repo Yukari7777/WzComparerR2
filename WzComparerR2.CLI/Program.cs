@@ -34,6 +34,7 @@ namespace WzComparerR2.CLI
             "--format",
             "--animation",
             "--fps",
+            "--document-profile",
         };
 
         private static readonly JsonSerializerOptions ResponseJsonOptions = new JsonSerializerOptions
@@ -168,6 +169,18 @@ namespace WzComparerR2.CLI
             }
 
             var stopwatch = Stopwatch.StartNew();
+            WzDocumentProfile documentProfile;
+            try
+            {
+                documentProfile = namedOptions.TryGetValue("--document-profile", out var profilePath)
+                    ? ReadDocumentProfile(profilePath)
+                    : null;
+            }
+            catch (Exception ex)
+            {
+                WriteError(ex.Message);
+                return ExitUsageError;
+            }
             LoadedWzSession session;
             try
             {
@@ -194,7 +207,7 @@ namespace WzComparerR2.CLI
                 WzExportResult result;
                 try
                 {
-                    result = session.Export(logicalPath, outputRoot, format, BuildDumpingOptions(flags));
+                    result = session.Export(logicalPath, outputRoot, format, BuildDumpingOptions(flags), documentProfile);
                 }
                 catch (Exception ex)
                 {
@@ -327,7 +340,10 @@ namespace WzComparerR2.CLI
             {
                 format = ReadFormat(root);
                 DumpingOptions options = ReadDumpingOptions(root);
-                result = session.Export(logicalPath, outputRoot, format, options);
+                WzDocumentProfile documentProfile = root.TryGetProperty("documentProfile", out var profileElement)
+                    ? ReadDocumentProfile(GetRequiredString(root, "documentProfile"))
+                    : null;
+                result = session.Export(logicalPath, outputRoot, format, options, documentProfile);
             }
             catch (Exception ex)
             {
@@ -396,6 +412,7 @@ namespace WzComparerR2.CLI
                 spineVersion = result.SpineVersion,
                 animationDurationMs = result.DurationMs,
                 fps = result.Fps,
+                cacheHit = result.CacheHit,
                 durationMs,
             });
         }
@@ -421,8 +438,8 @@ namespace WzComparerR2.CLI
                     path = logicalPath,
                     output = absoluteOutput,
                     format = FormatName(format),
-                    document = result.DocumentPath,
-                    documentWritten = result.DocumentWritten,
+                    documents = result.DocumentPaths,
+                    documentCount = result.DocumentPaths.Count,
                     externalFileCount = result.ExternalFileCount,
                     durationMs,
                 });
@@ -452,6 +469,19 @@ namespace WzComparerR2.CLI
                 LeaveReference = ReadOptionalBoolean(root, "leaveReference"),
                 IncludePngDimensions = ReadOptionalBoolean(root, "includePngDimensions"),
             };
+        }
+
+        private static WzDocumentProfile ReadDocumentProfile(string filePath)
+        {
+            string fullPath = Path.GetFullPath(filePath);
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException("Document profile not found.", fullPath);
+            }
+            var profile = JsonSerializer.Deserialize<WzDocumentProfile>(
+                File.ReadAllText(fullPath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return profile ?? throw new InvalidOperationException("Document profile is empty.");
         }
 
         private static bool ReadOptionalBoolean(JsonElement root, string name)
@@ -635,7 +665,7 @@ namespace WzComparerR2.CLI
             writer.WriteLine("Usage:");
             WriteSearchUsage(writer);
             writer.WriteLine("  WzComparerR2.CLI session --base <Base.wz>");
-            writer.WriteLine("  WzComparerR2.CLI export [--base <Base.wz>] --path <logical-path> --output <output-root> [--format json|xml] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
+            writer.WriteLine("  WzComparerR2.CLI export [--base <Base.wz>] --path <logical-path> --output <output-root> [--format json|xml] [--document-profile <json>] [--dump-raw|--dump-external] [--leave-reference] [--include-png-dimensions]");
             writer.WriteLine("  WzComparerR2.CLI render-spine [--base <Base.wz>] --path <logical-path> --output <output-root> [--animation <name>] [--fps <1-120>]");
             writer.WriteLine("    Without --base, reads the Base.wz path from <output-root>/BASE.");
             writer.WriteLine();
@@ -688,7 +718,7 @@ namespace WzComparerR2.CLI
                 }
             }
 
-            public WzExportResult Export(string logicalPath, string outputRoot, WzDumpFormat format, DumpingOptions options)
+            public WzExportResult Export(string logicalPath, string outputRoot, WzDumpFormat format, DumpingOptions options, WzDocumentProfile documentProfile = null)
             {
                 if (!this.resolver.TryResolveExactPath(logicalPath, out var resolvedNode, out var resolutionFailure))
                 {
@@ -710,7 +740,7 @@ namespace WzComparerR2.CLI
 
                 using (resolvedNode)
                 {
-                    if (!resolvedNode.IsInsideImage)
+                    if (!resolvedNode.IsInsideImage && documentProfile == null)
                     {
                         var failed = new WzExportResult();
                         failed.AddFailure(new WzExportFailure
@@ -722,7 +752,7 @@ namespace WzComparerR2.CLI
                         });
                         return failed;
                     }
-                    return WzDumpExporter.Export(resolvedNode.Node, outputRoot, format, options, resolvedNode);
+                    return WzDumpExporter.Export(resolvedNode.Node, outputRoot, format, options, resolvedNode, documentProfile);
                 }
             }
 
@@ -732,6 +762,7 @@ namespace WzComparerR2.CLI
                 string animation,
                 int fps)
             {
+                Console.Error.WriteLine($"[Spine] {logicalPath} / {animation ?? "default"}: preparing");
                 if (!this.resolver.TryResolveExactPath(logicalPath, out var resolvedNode, out var resolutionFailure))
                 {
                     throw new InvalidOperationException(resolutionFailure?.Reason ?? "Exact Spine path could not be resolved.");
@@ -755,18 +786,28 @@ namespace WzComparerR2.CLI
                                     throw new InvalidOperationException(failure?.Reason ?? $"Spine texture not found: {fullPath}");
                                 textureScopes.Add(textureNode);
                                 return textureNode.Node;
-                            });
+                            },
+                            (selected, fingerprint) => ReadSpineCache(
+                                BuildSpineOutputDirectory(outputRoot, logicalPath, selected),
+                                BuildSpineSourcePrefix(logicalPath, selected), selected, fingerprint, fps),
+                            selected => BuildSpineOutputDirectory(outputRoot, logicalPath, selected),
+                            (done, total) => Console.Error.WriteLine($"[Spine] {logicalPath}: {done}/{total} frames"));
                     }
                     finally
                     {
                         for (int index = textureScopes.Count - 1; index >= 0; index--)
                             textureScopes[index].Dispose();
                     }
-                    string sourcePrefix = BuildSpineSourcePrefix(logicalPath, provisionalAnimation);
+                    string sourcePrefix = BuildSpineSourcePrefix(logicalPath, raster.Animation);
+                    string canonicalDirectory = BuildSpineOutputDirectory(outputRoot, logicalPath, raster.Animation);
+                    var frameHashes = raster.CacheHit ? raster.FrameFileHashes : raster.Frames.Select(frame => frame.FileName).Distinct()
+                        .ToDictionary(name => name, name => HashSpineFile(Path.Combine(canonicalDirectory, name)));
                     string documentPath = Path.Combine(outputDirectory, "clip.json");
                     var document = new
                     {
                         version = 1,
+                        inputFingerprint = raster.InputFingerprint,
+                        frameHashes,
                         source = logicalPath.Replace('\\', '/'),
                         spineVersion = raster.SpineVersion,
                         animation = raster.Animation,
@@ -787,7 +828,11 @@ namespace WzComparerR2.CLI
                             origin = new[] { frame.Origin.X, frame.Origin.Y },
                         }).ToArray(),
                     };
-                    File.WriteAllText(documentPath, JsonSerializer.Serialize(document, ResponseJsonOptions));
+                    string serialized = JsonSerializer.Serialize(document, ResponseJsonOptions);
+                    WriteSpineDocument(Path.Combine(canonicalDirectory, "clip.json"), serialized);
+                    if (!string.Equals(outputDirectory, canonicalDirectory, StringComparison.OrdinalIgnoreCase))
+                        WriteSpineDocument(documentPath, serialized);
+                    Console.Error.WriteLine($"[Spine] {logicalPath} / {raster.Animation}: {(raster.CacheHit ? "cache hit" : "rendered")}");
                     return new SpineExportDocument
                     {
                         DocumentPath = documentPath,
@@ -796,6 +841,7 @@ namespace WzComparerR2.CLI
                         SpineVersion = raster.SpineVersion,
                         DurationMs = raster.DurationMs,
                         Fps = raster.Fps,
+                        CacheHit = raster.CacheHit,
                     };
                 }
             }
@@ -866,6 +912,7 @@ namespace WzComparerR2.CLI
 
         private sealed class SpineExportDocument
         {
+            public bool CacheHit { get; set; }
             public string DocumentPath { get; set; }
             public int FrameCount { get; set; }
             public string Animation { get; set; }

@@ -19,6 +19,21 @@ namespace WzComparerR2.WzLib
             DumpingOptions dumpOptions,
             WzNodeResolver.ResolvedNode resolutionScope)
         {
+            return Export(node, outputRoot, format, dumpOptions, resolutionScope, null);
+        }
+
+        public static WzExportResult Export(
+            Wz_Node node,
+            string outputRoot,
+            WzDumpFormat format,
+            DumpingOptions dumpOptions,
+            WzNodeResolver.ResolvedNode resolutionScope,
+            WzDocumentProfile documentProfile)
+        {
+            if (documentProfile != null)
+            {
+                return ExportProfile(node, outputRoot, format, dumpOptions, resolutionScope, documentProfile);
+            }
             var result = new WzExportResult();
             if (node == null)
             {
@@ -66,8 +81,11 @@ namespace WzComparerR2.WzLib
                 return result;
             }
 
-            result.DocumentWritten = !(dumpOptions.DumpExternal && (node.IsCanvasImage() || IsResourceValue(node.Value)));
-            result.DocumentPath = result.DocumentWritten ? documentPath : null;
+            bool documentWritten = !(dumpOptions.DumpExternal && (node.IsCanvasImage() || IsResourceValue(node.Value)));
+            if (documentWritten)
+            {
+                result.AddDocumentPath(documentPath);
+            }
 
             var context = new WzDumpSerializationContext
             {
@@ -86,7 +104,7 @@ namespace WzComparerR2.WzLib
                 {
                     return result;
                 }
-                if (dumpOptions.DumpExternal && !result.DocumentWritten && resourceTasks.Count == 0)
+                if (dumpOptions.DumpExternal && !documentWritten && resourceTasks.Count == 0)
                 {
                     result.AddFailure(CreateFailure("resource_not_found", logicalPath, "resource-plan", "The requested resource subtree contains no supported external resources."));
                     return result;
@@ -111,14 +129,14 @@ namespace WzComparerR2.WzLib
                     return result;
                 }
 
-                if (result.DocumentWritten)
+                if (documentWritten)
                 {
                     string stagedDocumentPath = GetSafeOutputPath(stagingRoot, EncodeRelativeOutputPath(logicalPath + extension));
                     WriteDocument(node, stagedDocumentPath, format, dumpOptions, context);
                 }
 
                 IReadOnlyList<string> stagedFiles = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
-                if (!TryCommit(stagingRoot, result.OutputRoot, stagedFiles, result.DocumentWritten ? null : documentPath, out var commitError))
+                if (!TryCommit(stagingRoot, result.OutputRoot, stagedFiles, documentWritten ? Array.Empty<string>() : new[] { documentPath }, out var commitError))
                 {
                     result.AddFailure(CreateFailure("commit_failed", logicalPath, "commit", commitError?.Message ?? "Failed to publish staged export files."));
                     return result;
@@ -134,6 +152,140 @@ namespace WzComparerR2.WzLib
             catch (Exception ex)
             {
                 result.AddFailure(CreateFailure("serialization_failed", logicalPath, "serialization", ex.Message));
+                return result;
+            }
+            finally
+            {
+                DeleteDirectory(stagingRoot);
+            }
+        }
+
+        private static WzExportResult ExportProfile(
+            Wz_Node node,
+            string outputRoot,
+            WzDumpFormat format,
+            DumpingOptions dumpOptions,
+            WzNodeResolver.ResolvedNode resolutionScope,
+            WzDocumentProfile profile)
+        {
+            var result = new WzExportResult();
+            string logicalRoot = NormalizeLogicalPath(node?.FullPathToFile);
+            string profileRoot = NormalizeLogicalPath(profile?.Root);
+            if (node == null || profile == null || !profile.SplitImageChildren || !string.Equals(logicalRoot, profileRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                result.AddFailure(CreateFailure("invalid_document_profile", logicalRoot, "profile", "The document profile root must match the requested path and enable splitImageChildren."));
+                return result;
+            }
+            if (resolutionScope == null)
+            {
+                result.AddFailure(CreateFailure("missing_resolution_context", logicalRoot, "profile", "Profile export requires a WZ resolution context."));
+                return result;
+            }
+
+            string fullOutputRoot;
+            try
+            {
+                fullOutputRoot = Path.GetFullPath(outputRoot ?? throw new ArgumentNullException(nameof(outputRoot)));
+            }
+            catch (Exception ex)
+            {
+                result.AddFailure(CreateFailure("invalid_output_root", logicalRoot, "request", ex.Message));
+                return result;
+            }
+            result.OutputRoot = fullOutputRoot;
+
+            var additional = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in profile.AdditionalSplitNodes ?? Array.Empty<string>())
+            {
+                string normalized = NormalizeLogicalPath(path);
+                if (!normalized.StartsWith(profileRoot + "/", StringComparison.OrdinalIgnoreCase) || !additional.Add(normalized))
+                {
+                    result.AddFailure(CreateFailure("invalid_document_profile", normalized, "profile", "Additional split nodes must be unique descendants of the profile root."));
+                }
+            }
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in profile.ExcludedSubtrees ?? Array.Empty<string>())
+            {
+                string normalized = NormalizeLogicalPath(path);
+                if (!normalized.StartsWith(profileRoot + "/", StringComparison.OrdinalIgnoreCase) || !excluded.Add(normalized))
+                {
+                    result.AddFailure(CreateFailure("invalid_document_profile", normalized, "profile", "Excluded subtrees must be unique descendants of the profile root."));
+                }
+            }
+            if (!result.Success) return result;
+
+            var documents = new List<Wz_Node>();
+            var matchedAdditional = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (Wz_Image image in EnumerateImages(node))
+            {
+                string imagePath = NormalizeLogicalPath((image.OwnerNode ?? image.Node).FullPathToFile);
+                if (excluded.Any(path => imagePath.Equals(path, StringComparison.OrdinalIgnoreCase) || imagePath.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+                Wz_Node imageEntry = image.OwnerNode ?? image.Node;
+                if (!resolutionScope.TryEnterImage(imageEntry, out Wz_Node imageRoot, out var failure))
+                {
+                    result.AddFailure(FromResolutionFailure(failure));
+                    continue;
+                }
+                foreach (Wz_Node child in imageRoot.Nodes)
+                {
+                    string childPath = NormalizeLogicalPath(child.FullPathToFile);
+                    if (additional.Contains(childPath))
+                    {
+                        matchedAdditional.Add(childPath);
+                        foreach (Wz_Node grandchild in child.Nodes) documents.Add(grandchild);
+                    }
+                    else
+                    {
+                        documents.Add(child);
+                    }
+                }
+            }
+            foreach (string path in additional.Except(matchedAdditional, StringComparer.OrdinalIgnoreCase))
+            {
+                result.AddFailure(CreateFailure("document_boundary_not_found", path, "profile", "An additional split node was not found as an image child."));
+            }
+            if (documents.Count == 0)
+            {
+                result.AddFailure(CreateFailure("document_not_found", logicalRoot, "profile", "The profile root contains no image child documents."));
+            }
+            if (!result.Success) return result;
+
+            string stagingRoot = Path.Combine(Path.GetTempPath(), "wcr2-profile-export-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingRoot);
+            try
+            {
+                var writtenDocuments = new List<Wz_Node>();
+                foreach (Wz_Node document in documents)
+                {
+                    WzExportResult childResult = Export(document, stagingRoot, format, dumpOptions, resolutionScope);
+                    result.AddFailures(childResult.Failures);
+                    result.ExternalFileCount += childResult.ExternalFileCount;
+                    if (childResult.DocumentPaths.Count > 0) writtenDocuments.Add(document);
+                }
+                if (!result.Success) return result;
+
+                string extension = format == WzDumpFormat.Xml ? ".xml" : ".json";
+                IReadOnlyList<string> stagedFiles = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
+                var stagedRelative = new HashSet<string>(stagedFiles.Select(path => MakeRelativePath(stagingRoot, path)), StringComparer.OrdinalIgnoreCase);
+                string managedRoot = GetSafeOutputPath(fullOutputRoot, EncodeRelativeOutputPath(profileRoot));
+                var obsolete = Directory.Exists(managedRoot)
+                    ? Directory.GetFiles(managedRoot, "*" + extension, SearchOption.AllDirectories)
+                        .Where(path => !stagedRelative.Contains(MakeRelativePath(fullOutputRoot, path)))
+                        .ToArray()
+                    : Array.Empty<string>();
+                if (!TryCommit(stagingRoot, fullOutputRoot, stagedFiles, obsolete, out var commitError))
+                {
+                    result.AddFailure(CreateFailure("commit_failed", logicalRoot, "commit", commitError?.Message ?? "Failed to publish profiled export files."));
+                    return result;
+                }
+                foreach (Wz_Node document in writtenDocuments)
+                {
+                    string documentPath = GetSafeOutputPath(fullOutputRoot, EncodeRelativeOutputPath(NormalizeLogicalPath(document.FullPathToFile) + extension));
+                    result.AddDocumentPath(documentPath);
+                }
                 return result;
             }
             finally
@@ -430,7 +582,7 @@ namespace WzComparerR2.WzLib
             }
         }
 
-        private static bool TryCommit(string stagingRoot, string outputRoot, IReadOnlyList<string> stagedFiles, string obsoleteDocument, out Exception error)
+        private static bool TryCommit(string stagingRoot, string outputRoot, IReadOnlyList<string> stagedFiles, IReadOnlyList<string> obsoleteDocuments, out Exception error)
         {
             error = null;
             string backupRoot = Path.Combine(Path.GetTempPath(), "wcr2-export-backup-" + Guid.NewGuid().ToString("N"));
@@ -449,11 +601,14 @@ namespace WzComparerR2.WzLib
                     changed.Add(destination);
                 }
 
-                if (!string.IsNullOrEmpty(obsoleteDocument) && File.Exists(obsoleteDocument))
+                foreach (string obsoleteDocument in obsoleteDocuments ?? Array.Empty<string>())
                 {
-                    BackupFile(obsoleteDocument, backupRoot, backups);
-                    File.Delete(obsoleteDocument);
-                    changed.Add(obsoleteDocument);
+                    if (File.Exists(obsoleteDocument))
+                    {
+                        BackupFile(obsoleteDocument, backupRoot, backups);
+                        File.Delete(obsoleteDocument);
+                        changed.Add(obsoleteDocument);
+                    }
                 }
                 return true;
             }

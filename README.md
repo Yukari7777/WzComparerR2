@@ -39,7 +39,7 @@ Clone repository with submodules.
 
 # CLI Dump Export
 
-`WzComparerR2.CLI` exports an exact logical WZ path. The recommended workflow is a stateful session that loads `Base.wz` once and accepts JSON Lines requests. Image roots, in-image subnodes, `_Canvas` nodes, and individual binary resource nodes are supported.
+`WzComparerR2.CLI` exports an exact logical WZ path. The recommended workflow is a stateful session that loads `Base.wz` once and accepts JSON Lines requests. Image roots, in-image subnodes, directory subtrees with a document profile, `_Canvas` nodes, and individual binary resource nodes are supported.
 
 `--output` and the JSONL `output` property always name an output root directory. Documents and external resources retain their logical WZ paths below that root:
 
@@ -48,7 +48,27 @@ Clone repository with submodules.
 <output>/<resolved resource logical path>.<extension>
 ```
 
-An `_Canvas` subtree or an individual PNG, Sound, RawData, or Video request writes only resources and returns `documentWritten=false`. It does not create a redundant `_Canvas` document.
+An `_Canvas` subtree or an individual PNG, Sound, RawData, or Video request writes only resources and returns an empty `documents` array. It does not create a redundant `_Canvas` document.
+Sound metadata includes `@format` (`mp3`, `wav`, or `bin`) matching the external file extension. For PCM sounds, `@length` is the source payload length and the exported WAV file additionally contains its 44-byte container header.
+
+A document profile splits every image below one logical subtree at its direct
+children. Exact additional boundaries may replace one child document with its
+own child documents, while storage-only subtrees such as `_Canvas` can be
+excluded. Profile export stages and commits the complete document set as one
+request and removes stale documents within the managed subtree.
+
+```json
+{
+  "root": "Mob/BossPattern",
+  "splitImageChildren": true,
+  "additionalSplitNodes": ["Mob/BossPattern/BossObject.img/globalObject"],
+  "excludedSubtrees": ["Mob/BossPattern/_Canvas"]
+}
+```
+
+```sh
+dotnet run --project WzComparerR2.CLI -- export --base "D:/MapleStory/Data/Base/Base.wz" --path "Mob/BossPattern" --output "D:/MyApp/public/wz" --document-profile "D:/MyApp/boss-pattern.json"
+```
 
 One-shot examples:
 
@@ -72,10 +92,13 @@ dotnet run --project WzComparerR2.CLI -- export --path "Mob/8880450.img" --outpu
 Options:
 
 - `--format json|xml` / `format`: document format. The default is `json`.
+- `--document-profile <json>` / `documentProfile`: split a directory subtree using the profile's document boundaries.
 
 Spine 4.1 map groups can be rasterized with the existing Common Spine loader and
 MonoGame renderer. The command writes a stable-bound PNG sequence and
 `clip.json`; it does not dump the skeleton into the browser asset set.
+See [Spine raster export and cache validation](Build/SpineRasterExport.md) for reuse,
+progress output, and verification.
 Linked atlas textures are resolved through the CLI WZ resolver and remain loaded
 through rasterization. Missing atlas pages use the GUI renderer's empty-texture
 behavior. PNG encoding preserves the recorder's BGRA channels and straight alpha.
@@ -113,7 +136,7 @@ The session reads one JSON object per line and writes one JSON response per line
 One-shot and session exports use the same success fields:
 
 ```json
-{"ok":true,"requestId":"mob","command":"export","path":"Mob/8880450.img","output":"D:\\MyApp\\public\\wz","format":"json","document":"D:\\MyApp\\public\\wz\\Mob\\8880450.img.json","documentWritten":true,"externalFileCount":42,"durationMs":298}
+{"ok":true,"requestId":"mob","command":"export","path":"Mob/8880450.img","output":"D:\\MyApp\\public\\wz","format":"json","documents":["D:\\MyApp\\public\\wz\\Mob\\8880450.img.json"],"documentCount":1,"externalFileCount":42,"durationMs":298}
 ```
 
 An unresolved link, type mismatch, unsupported resource, or decode error fails the request instead of writing a link stub. Failures contain both a short summary and structured diagnostics:

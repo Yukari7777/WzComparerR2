@@ -33,18 +33,25 @@ namespace WzComparerR2.WzLib
     public sealed class WzExportResult
     {
         private readonly List<WzExportFailure> failures = new List<WzExportFailure>();
+        private readonly List<string> documentPaths = new List<string>();
 
         public bool Success => this.failures.Count == 0;
 
         public string OutputRoot { get; internal set; }
 
-        public string DocumentPath { get; internal set; }
-
-        public bool DocumentWritten { get; internal set; }
+        public IReadOnlyList<string> DocumentPaths => this.documentPaths;
 
         public int ExternalFileCount { get; internal set; }
 
         public IReadOnlyList<WzExportFailure> Failures => this.failures;
+
+        internal void AddDocumentPath(string path)
+        {
+            if (!string.IsNullOrEmpty(path) && !this.documentPaths.Exists(value => string.Equals(value, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                this.documentPaths.Add(path);
+            }
+        }
 
         public void AddFailure(WzExportFailure failure)
         {

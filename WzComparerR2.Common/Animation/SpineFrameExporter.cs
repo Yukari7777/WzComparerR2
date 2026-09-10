@@ -26,17 +26,23 @@ namespace WzComparerR2.Animation
         public int DurationMs { get; set; }
         public int Fps { get; set; }
         public Rectangle Bounds { get; set; }
+        public string InputFingerprint { get; set; }
+        public bool CacheHit { get; set; }
+        public Dictionary<string, string> FrameFileHashes { get; } = new Dictionary<string, string>();
         public List<SpineRasterFrame> Frames { get; } = new List<SpineRasterFrame>();
     }
 
-    public static class SpineFrameExporter
+    public static partial class SpineFrameExporter
     {
         public static SpineRasterResult Export(
             Wz_Node groupNode,
             string animationName,
             string outputDirectory,
             int fps = 30,
-            GlobalFindNodeFunction findNode = null)
+            GlobalFindNodeFunction findNode = null,
+            Func<string, string, SpineRasterResult> reuse = null,
+            Func<string, string> destination = null,
+            Action<int, int> progress = null)
         {
             if (groupNode == null) throw new ArgumentNullException(nameof(groupNode));
             if (fps <= 0 || fps > 120) throw new ArgumentOutOfRangeException(nameof(fps));
@@ -77,6 +83,10 @@ namespace WzComparerR2.Animation
                 animator.SelectedAnimationName = selected;
                 int durationMs = animator.Length;
                 if (durationMs <= 0) throw new InvalidOperationException($"Spine animation '{selected}' has no duration.");
+                string fingerprint = reuse == null ? null : Fingerprint(detection.SourceNode.ParentNode, fps, findNode);
+                var cached = reuse?.Invoke(selected, fingerprint);
+                if (cached != null) return cached;
+                outputDirectory = destination?.Invoke(selected) ?? outputDirectory;
 
                 var sampleTimes = BuildSampleTimes(durationMs, fps);
                 Rectangle bounds = MeasureBounds(animator, sampleTimes);
@@ -93,6 +103,7 @@ namespace WzComparerR2.Animation
                     DurationMs = durationMs,
                     Fps = fps,
                     Bounds = bounds,
+                    InputFingerprint = fingerprint,
                 };
                 var recorder = new AnimationRecoder(graphicsService.GraphicsDevice);
                 recorder.Items.Add(animator);
@@ -100,10 +111,12 @@ namespace WzComparerR2.Animation
                 recorder.GetMaxLength();
                 recorder.BackgroundColor = Color.Transparent;
                 recorder.Begin(bounds);
-                string previousHash = null;
-                string previousFileName = null;
+                var frameFiles = new Dictionary<string, string>();
                 try
                 {
+                    using var texture = new RenderTarget2D(graphicsService.GraphicsDevice, bounds.Width, bounds.Height,
+                        false, SurfaceFormat.Bgra32, DepthFormat.None);
+                    var pixels = new byte[checked(bounds.Width * bounds.Height * 4)];
                     for (int index = 0; index < sampleTimes.Count; index++)
                     {
                         int at = sampleTimes[index];
@@ -111,16 +124,10 @@ namespace WzComparerR2.Animation
                         recorder.ResetAll();
                         recorder.Update(TimeSpan.FromMilliseconds(at));
                         recorder.Draw();
-                        using var texture = recorder.GetPngTexture();
-                        var pixels = new byte[texture.Width * texture.Height * 4];
+                        recorder.CopyPngTo(texture);
                         texture.GetData(pixels);
                         string hash = Convert.ToHexString(SHA256.HashData(pixels));
-                        string fileName;
-                        if (hash == previousHash)
-                        {
-                            fileName = previousFileName;
-                        }
-                        else
+                        if (!frameFiles.TryGetValue(hash, out string fileName))
                         {
                             fileName = $"{index:D4}.png";
                             var handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
@@ -135,8 +142,7 @@ namespace WzComparerR2.Animation
                             {
                                 handle.Free();
                             }
-                            previousHash = hash;
-                            previousFileName = fileName;
+                            frameFiles.Add(hash, fileName);
                         }
                         result.Frames.Add(new SpineRasterFrame
                         {
@@ -144,6 +150,8 @@ namespace WzComparerR2.Animation
                             Delay = Math.Max(1, next - at),
                             Origin = new Point(-bounds.Left, -bounds.Top),
                         });
+                        if (index == 0 || index + 1 == sampleTimes.Count || (index + 1) % fps == 0)
+                            progress?.Invoke(index + 1, sampleTimes.Count);
                     }
                 }
                 finally

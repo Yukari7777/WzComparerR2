@@ -24,7 +24,9 @@ namespace WzComparerR2.WzLib.Tests
             Run(nameof(WritesJsonAndXmlToCanonicalPaths), WritesJsonAndXmlToCanonicalPaths);
             Run(nameof(EncodesPortableOutputPaths), EncodesPortableOutputPaths);
             Run(nameof(WritesPngDimensions), WritesPngDimensions);
+            Run(nameof(WritesSoundFormat), WritesSoundFormat);
             Run(nameof(PreservesExistingOutputWhenPlanningFails), PreservesExistingOutputWhenPlanningFails);
+            Run(nameof(SplitsImageChildrenWithAdditionalBoundaries), SplitsImageChildrenWithAdditionalBoundaries);
 
             if (Failures.Count == 0)
             {
@@ -191,7 +193,7 @@ namespace WzComparerR2.WzLib.Tests
                     WzExportResult json = WzDumpExporter.Export(document, outputRoot, WzDumpFormat.Json, DumpingOptions.CreateDefaults(), resolved);
                     WzExportResult xml = WzDumpExporter.Export(document, outputRoot, WzDumpFormat.Xml, DumpingOptions.CreateDefaults(), resolved);
                     Assert(json.Success && xml.Success, "JSON or XML export failed.");
-                    Assert(json.DocumentWritten && xml.DocumentWritten, "Document result was not recorded.");
+                    Assert(json.DocumentPaths.Count == 1 && xml.DocumentPaths.Count == 1, "Document result was not recorded.");
                     Assert(File.Exists(Path.Combine(outputRoot, "Doc.img.json")), "Canonical JSON path was not written.");
                     Assert(File.Exists(Path.Combine(outputRoot, "Doc.img.xml")), "Canonical XML path was not written.");
                 }
@@ -219,6 +221,74 @@ namespace WzComparerR2.WzLib.Tests
                 Assert(!result.Success, "Planning failure unexpectedly succeeded.");
                 Assert(File.ReadAllText(documentPath) == originalContent, "Failed export changed existing output.");
                 Assert(Directory.GetFiles(outputRoot, "*", SearchOption.AllDirectories).Length == 1, "Failed export left partial files.");
+            }
+            finally
+            {
+                Directory.Delete(outputRoot, true);
+            }
+        }
+
+        private static void SplitsImageChildrenWithAdditionalBoundaries()
+        {
+            var structure = new Wz_Structure { WzNode = new Wz_Node(string.Empty) };
+            Wz_Node mob = structure.WzNode.Nodes.Add("Mob");
+            Wz_Node bossPattern = mob.Nodes.Add("BossPattern");
+            var image = new Wz_Image("Boss.img", 0, 0, 0, 0, new SyntheticMapleStoryFile(structure));
+            typeof(Wz_Image).GetField("extr", BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(image, true);
+            Wz_Node imageEntry = new Wz_Node("Boss.img") { Value = image };
+            image.OwnerNode = imageEntry;
+            Wz_Node imageNode = image.Node;
+            imageNode.Nodes.Add(new Wz_Node("common") { Value = 1 });
+            imageNode.Nodes.Add(new Wz_Node("1000") { Value = 2 });
+            imageNode.Nodes.Add(new Wz_Node("globalObject")
+            {
+                Nodes =
+                {
+                    new Wz_Node("10") { Value = 3 },
+                    new Wz_Node("11") { Value = 4 },
+                },
+            });
+            bossPattern.Nodes.Add(imageEntry);
+            Wz_Node canvasDirectory = bossPattern.Nodes.Add("_Canvas");
+            var canvasImage = new Wz_Image("Boss.img", 0, 0, 0, 0, new SyntheticMapleStoryFile(structure));
+            typeof(Wz_Image).GetField("extr", BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(canvasImage, true);
+            Wz_Node canvasEntry = new Wz_Node("Boss.img") { Value = canvasImage };
+            canvasImage.OwnerNode = canvasEntry;
+            canvasImage.Node.Nodes.Add(new Wz_Node("resource") { Value = 5 });
+            canvasDirectory.Nodes.Add(canvasEntry);
+
+            string outputRoot = CreateTempDirectory();
+            try
+            {
+                string obsolete = Path.Combine(outputRoot, "Mob", "BossPattern", "Boss.img.json");
+                Directory.CreateDirectory(Path.GetDirectoryName(obsolete));
+                File.WriteAllText(obsolete, "old");
+                var resolver = new WzNodeResolver(structure);
+                Assert(resolver.TryResolveExactPath("Mob/BossPattern", out var resolved, out var failure), failure?.Reason);
+                using (resolved)
+                {
+                    WzExportResult result = WzDumpExporter.Export(
+                        resolved.Node,
+                        outputRoot,
+                        WzDumpFormat.Json,
+                        DumpingOptions.CreateDefaults(),
+                        resolved,
+                        new WzDocumentProfile
+                        {
+                            Root = "Mob/BossPattern",
+                            SplitImageChildren = true,
+                            AdditionalSplitNodes = new[] { "Mob/BossPattern/Boss.img/globalObject" },
+                            ExcludedSubtrees = new[] { "Mob/BossPattern/_Canvas" },
+                        });
+                    Assert(result.Success, result.Failures.FirstOrDefault()?.Reason ?? "Profile export failed.");
+                    Assert(result.DocumentPaths.Count == 4, "Profile export wrote the wrong number of documents.");
+                }
+                Assert(!File.Exists(obsolete), "Profile export retained the obsolete image document.");
+                Assert(File.Exists(Path.Combine(outputRoot, "Mob", "BossPattern", "Boss.img", "common.json")), "Common fragment was not written.");
+                Assert(File.Exists(Path.Combine(outputRoot, "Mob", "BossPattern", "Boss.img", "1000.json")), "Numeric fragment was not written.");
+                Assert(!File.Exists(Path.Combine(outputRoot, "Mob", "BossPattern", "Boss.img", "globalObject.json")), "Additional split parent was written.");
+                Assert(File.Exists(Path.Combine(outputRoot, "Mob", "BossPattern", "Boss.img", "globalObject", "10.json")), "Additional split child was not written.");
+                Assert(!Directory.Exists(Path.Combine(outputRoot, "Mob", "BossPattern", "_Canvas")), "Excluded Canvas subtree was written.");
             }
             finally
             {
@@ -268,6 +338,27 @@ namespace WzComparerR2.WzLib.Tests
                 string json = File.ReadAllText(Path.Combine(outputRoot, "Doc.img.json"));
                 Assert(json.Contains("\"@width\": 17"), "PNG width was not serialized.");
                 Assert(json.Contains("\"@height\": 23"), "PNG height was not serialized.");
+            }
+            finally
+            {
+                Directory.Delete(outputRoot, true);
+            }
+        }
+
+        private static void WritesSoundFormat()
+        {
+            Wz_Structure structure = CreateStructure(out Wz_Node document);
+            document.Nodes.Add(new Wz_Node("sound")
+            {
+                Value = new Wz_Sound(0, 0, 0, null, null),
+            });
+            string outputRoot = CreateTempDirectory();
+            try
+            {
+                WzExportResult result = Export(structure, document, DumpingOptions.CreateDefaults(), outputRoot);
+                Assert(result.Success, result.Failures.FirstOrDefault()?.Reason ?? "Sound metadata export failed.");
+                string json = File.ReadAllText(Path.Combine(outputRoot, "Doc.img.json"));
+                Assert(json.Contains("\"@format\": \"bin\""), "Sound format was not serialized.");
             }
             finally
             {

@@ -147,10 +147,18 @@ namespace WzComparerR2.Controls
 
         public Texture2D GetPngTexture()
         {
+            var texture = new RenderTarget2D(_device, _rt2d.Width, _rt2d.Height, false, SurfaceFormat.Bgra32, DepthFormat.None);
+            try { CopyPngTo(texture); return texture; }
+            catch { texture.Dispose(); throw; }
+        }
+
+        public void CopyPngTo(RenderTarget2D texture)
+        {
+            if (texture == null || texture.Width != _rt2d.Width || texture.Height != _rt2d.Height || texture.Format != SurfaceFormat.Bgra32)
+                throw new ArgumentException("PNG destination must match the recorder's BGRA dimensions.", nameof(texture));
             System.Threading.Monitor.Enter(this._device);
             try
             {
-                var texture = new RenderTarget2D(_device, _rt2d.Width, _rt2d.Height, false, SurfaceFormat.Bgra32, DepthFormat.None);
                 _device.SetRenderTarget(texture);
                 _eff.AlphaMixEnabled = false;
 
@@ -158,7 +166,6 @@ namespace WzComparerR2.Controls
                 _sb.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp, null, null, _eff, null);
                 _sb.Draw(_rt2d, Vector2.Zero, Color.White);
                 _sb.End();
-                return texture;
             }
             finally
             {
@@ -374,6 +381,7 @@ namespace WzComparerR2.Controls
             }
 
             _eff.Dispose();
+            _rt2d?.Dispose();
             _sb.Dispose();
             _graphics.End(true);
         }
