@@ -117,6 +117,7 @@ namespace WzComparerR2.Animation
                     using var texture = new RenderTarget2D(graphicsService.GraphicsDevice, bounds.Width, bounds.Height,
                         false, SurfaceFormat.Bgra32, DepthFormat.None);
                     var pixels = new byte[checked(bounds.Width * bounds.Height * 4)];
+                    using var frameHash = SHA256.Create();
                     for (int index = 0; index < sampleTimes.Count; index++)
                     {
                         int at = sampleTimes[index];
@@ -126,7 +127,7 @@ namespace WzComparerR2.Animation
                         recorder.Draw();
                         recorder.CopyPngTo(texture);
                         texture.GetData(pixels);
-                        string hash = Convert.ToHexString(SHA256.HashData(pixels));
+                        string hash = BitConverter.ToString(frameHash.ComputeHash(pixels)).Replace("-", "");
                         if (!frameFiles.TryGetValue(hash, out string fileName))
                         {
                             fileName = $"{index:D4}.png";

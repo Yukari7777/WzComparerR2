@@ -13,12 +13,13 @@ namespace WzComparerR2.Animation
     {
         private static string Fingerprint(Wz_Node group, int fps, GlobalFindNodeFunction findNode)
         {
-            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            using var hash = SHA256.Create();
+            void Append(byte[] bytes) => hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
             void Text(string value)
             {
                 byte[] bytes = Encoding.UTF8.GetBytes(value ?? "");
-                hash.AppendData(BitConverter.GetBytes(bytes.Length));
-                hash.AppendData(bytes);
+                Append(BitConverter.GetBytes(bytes.Length));
+                Append(bytes);
             }
             Text("spine-raster-v2");
             Text(fps.ToString(CultureInfo.InvariantCulture));
@@ -48,15 +49,15 @@ namespace WzComparerR2.Animation
                         Text(png.Format.ToString());
                         Text(png.Scale.ToString(CultureInfo.InvariantCulture));
                         byte[] pixels = png.GetRawData();
-                        hash.AppendData(BitConverter.GetBytes(pixels.Length));
-                        hash.AppendData(pixels);
+                        Append(BitConverter.GetBytes(pixels.Length));
+                        Append(pixels);
                     }
                     else if (node.Value is IMapleStoryBlob blob)
                     {
                         var bytes = new byte[blob.Length];
                         blob.CopyTo(bytes, 0);
-                        hash.AppendData(BitConverter.GetBytes(bytes.Length));
-                        hash.AppendData(bytes);
+                        Append(BitConverter.GetBytes(bytes.Length));
+                        Append(bytes);
                     }
                     else if (node.Value is Wz_Vector vector)
                     {
@@ -70,7 +71,8 @@ namespace WzComparerR2.Animation
                 finally { visiting.Remove(node); }
             }
             Visit(group);
-            return Convert.ToHexString(hash.GetHashAndReset());
+            hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            return BitConverter.ToString(hash.Hash).Replace("-", "");
         }
     }
 }
