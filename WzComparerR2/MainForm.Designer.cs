@@ -1495,7 +1495,8 @@
             this.comboItem11,
             this.comboItem12,
             this.comboItem19,
-            this.comboItem12_2});
+            this.comboItem12_2,
+            this.openWzSearchCriterion});
             this.comboBoxItem1.Name = "comboBoxItem1";
             this.comboBoxItem1.SelectedIndex = 0;
             // 
