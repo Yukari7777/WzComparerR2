@@ -6,6 +6,12 @@ pixel buffer per clip. Frame sampling still resets and evaluates the original
 absolute sample times. Identical pixel buffers share a PNG across the entire
 clip, including nonconsecutive frames.
 
+An existing animation whose length rounds to zero milliseconds is sampled once
+at t=0. Its raster clip holds that static pose for `max(1, floor(1000 / fps))`
+milliseconds (33 ms at 30 FPS), keeping frame delays positive without adding a
+second sample. This hold time is a raster playback convention, not an authored
+animation duration. Missing animations and empty visible bounds remain errors.
+
 Frames are stored under the resolved animation name. A request without an
 animation writes a `default/clip.json` alias whose frame references point to that
 same canonical directory. Default and explicit requests do not render or store

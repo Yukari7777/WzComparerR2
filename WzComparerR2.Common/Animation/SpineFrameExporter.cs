@@ -81,8 +81,7 @@ namespace WzComparerR2.Animation
                     throw new InvalidOperationException($"Spine animation '{animationName}' was not found.");
                 }
                 animator.SelectedAnimationName = selected;
-                int durationMs = animator.Length;
-                if (durationMs <= 0) throw new InvalidOperationException($"Spine animation '{selected}' has no duration.");
+                int durationMs = GetRasterDuration(animator.Length, fps);
                 string fingerprint = reuse == null ? null : Fingerprint(detection.SourceNode.ParentNode, fps, findNode);
                 var cached = reuse?.Invoke(selected, fingerprint);
                 if (cached != null) return cached;
@@ -177,6 +176,14 @@ namespace WzComparerR2.Animation
                 if (detected.Success) return detected;
             }
             return SpineDetectionResult.Failed("Spine atlas/skeleton pair was not found in the selected group.");
+        }
+
+        private static int GetRasterDuration(int durationMs, int fps)
+        {
+            if (durationMs < 0) throw new ArgumentOutOfRangeException(nameof(durationMs));
+            // Zero-duration animations can select a visible static pose at t=0.
+            // A positive hold time keeps that single frame valid for clip consumers.
+            return durationMs == 0 ? Math.Max(1, 1000 / fps) : durationMs;
         }
 
         private static List<int> BuildSampleTimes(int durationMs, int fps)

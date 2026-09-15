@@ -20,10 +20,24 @@ internal static class Program
         {
             TestFingerprint();
             TestCachedFrames();
-            Console.WriteLine("PASS Spine fingerprint and frame-cache validation");
+            TestStaticFrameTiming();
+            Console.WriteLine("PASS Spine fingerprint, frame-cache and static-frame timing validation");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    private static void TestStaticFrameTiming()
+    {
+        var durationMethod = typeof(SpineFrameExporter).GetMethod("GetRasterDuration", BindingFlags.NonPublic | BindingFlags.Static);
+        var samplesMethod = typeof(SpineFrameExporter).GetMethod("BuildSampleTimes", BindingFlags.NonPublic | BindingFlags.Static);
+        for (int fps = 1; fps <= 120; fps++)
+        {
+            int duration = (int)durationMethod.Invoke(null, new object[] { 0, fps });
+            var samples = (System.Collections.Generic.List<int>)samplesMethod.Invoke(null, new object[] { duration, fps });
+            Assert(duration > 0 && samples.SequenceEqual(new[] { 0 }), "Static poses need exactly one positive-duration frame at t=0.");
+            Assert((int)durationMethod.Invoke(null, new object[] { 3333, fps }) == 3333, "Animated clip duration must remain unchanged.");
+        }
     }
 
     private static void TestFingerprint()
