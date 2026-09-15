@@ -49,9 +49,12 @@ namespace WzComparerR2
         private readonly ComboBox cmbValueType;
         private readonly ComboBox cmbValueComparison;
         private readonly ComboBox cmbValueOutput;
+        private readonly CheckBox chkSearchDescendants;
+        private readonly CheckBox chkValueRequired;
         private readonly TextBox txtTextPattern;
         private readonly TextBox txtValuePath;
         private readonly TextBox txtValuePattern;
+        private readonly ToolTip globalToolTip;
         private Form resizeForm;
 
         private CancellationTokenSource cancellation;
@@ -69,6 +72,7 @@ namespace WzComparerR2
         public WzQueryControl(Action<string> navigateToPath)
         {
             this.navigateToPath = navigateToPath;
+            this.globalToolTip = new ToolTip { AutoPopDelay = 60000, InitialDelay = 500, ReshowDelay = 100 };
 
             this.header = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, Padding = new Padding(4), WrapContents = false };
             this.cmbRoot = CreateCombo(100, Enum.GetValues(typeof(Wz_Type)).Cast<Wz_Type>().Where(type => type != Wz_Type.Unknown).Select(type => type.ToString()).ToArray());
@@ -109,6 +113,8 @@ namespace WzComparerR2
             this.txtTextPattern = new TextBox { Left = 160, Top = 4, Width = 150 };
             this.cmbTargetOutput = CreateCombo(72, "출력 X", "출력 O");
             this.cmbTargetOutput.SetBounds(82, 33, 72, 24);
+            this.chkSearchDescendants = new CheckBox { Text = "모든 하위 노드 검색", AutoSize = true, Left = 160, Top = 36 };
+            this.globalToolTip.SetToolTip(this.chkSearchDescendants, "체크 시 해당 노드 뿐만 아니라,\r\n해당 노드의 모든 하위 노드들도 검색 대상에 포함합니다.");
             this.lblValuePath = new Label { Text = "Value 경로", Left = 6, Top = 7, Width = 72 };
             this.txtValuePath = new TextBox { Left = 82, Top = 4, Width = 180 };
             this.cmbValueType = CreateCombo(65, "숫자", "문자열", "벡터");
@@ -119,6 +125,8 @@ namespace WzComparerR2
             this.cmbValueOutput = CreateCombo(72, "출력 X", "출력 O");
             this.cmbValueOutput.SelectedIndex = 1;
             this.cmbValueOutput.SetBounds(82, 63, 72, 24);
+            this.chkValueRequired = new CheckBox { Text = "필수 조건", AutoSize = true, Left = 160, Top = 66 };
+            this.globalToolTip.SetToolTip(this.chkValueRequired, "체크 시 해당 조건을 필수 조건으로 지정합니다.\r\n모든 필수 조건을 만족한 노드만 통과합니다.\r\n선택 조건이 있다면, 선택 조건을 하나 이상 만족한 노드만 통과합니다.");
             this.lblStatus = new Label { AutoSize = false, AutoEllipsis = true, Left = 82, Top = 93, Height = 18, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
             this.progressBar = new ProgressBar { Left = 82, Top = 116, Width = 200, Height = 18, Minimum = 0, Maximum = 1, Visible = false };
             this.editor.Controls.AddRange(new Control[]
@@ -127,12 +135,14 @@ namespace WzComparerR2
                 this.cmbTextComparison,
                 this.txtTextPattern,
                 this.cmbTargetOutput,
+                this.chkSearchDescendants,
                 this.lblValuePath,
                 this.txtValuePath,
                 this.cmbValueType,
                 this.cmbValueComparison,
                 this.txtValuePattern,
                 this.cmbValueOutput,
+                this.chkValueRequired,
                 this.lblStatus,
                 this.progressBar
             });
@@ -198,6 +208,8 @@ namespace WzComparerR2
             this.btnExportTxt.Click += (sender, e) => this.Export("txt");
             this.btnExportJson.Click += (sender, e) => this.Export("json");
             this.btnExportXml.Click += (sender, e) => this.Export("xml");
+            this.chkSearchDescendants.CheckedChanged += (sender, e) => this.SaveEditor();
+            this.chkValueRequired.CheckedChanged += (sender, e) => this.SaveEditor();
             this.cmbValueType.SelectedIndexChanged += (sender, e) =>
             {
                 if (!this.updatingEditor)
@@ -227,11 +239,15 @@ namespace WzComparerR2
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && this.resizeForm != null)
+            if (disposing)
             {
-                this.resizeForm.ResizeBegin -= this.ResizeForm_ResizeBegin;
-                this.resizeForm.ResizeEnd -= this.ResizeForm_ResizeEnd;
-                this.resizeForm = null;
+                this.globalToolTip.Dispose();
+                if (this.resizeForm != null)
+                {
+                    this.resizeForm.ResizeBegin -= this.ResizeForm_ResizeBegin;
+                    this.resizeForm.ResizeEnd -= this.ResizeForm_ResizeEnd;
+                    this.resizeForm = null;
+                }
             }
             base.Dispose(disposing);
         }
@@ -477,6 +493,11 @@ namespace WzComparerR2
             if (parent.Tag is QueryRule parentRule)
             {
                 parentRule.Children.Add((QueryRule)node.Tag);
+                if (kind == QueryRuleKind.Target)
+                {
+                    parentRule.SearchDescendants = false;
+                    parent.Text = this.GetRuleText(parentRule);
+                }
             }
             parent.ExpandAll();
             this.queryTree.SelectedNode = node;
@@ -556,8 +577,9 @@ namespace WzComparerR2
             string kind = rule.Kind == QueryRuleKind.Target ? "타겟" : "제외";
             string cond = string.IsNullOrEmpty(rule.TextPattern) ?
                 ": 모두" :
-                $": {GetComparisonText(rule.TextComparison)} {rule.TextPattern}";
-            return kind + cond;
+                $": {GetComparisonText(rule.TextComparison)} \"{rule.TextPattern}\"";
+            string searchRange = rule.SearchDescendants ? " (모든 하위)" : string.Empty;
+            return kind + cond + searchRange;
         }
 
         private TreeNode CreateValueRuleNode(ValueRule rule)
@@ -570,10 +592,10 @@ namespace WzComparerR2
 
         private string GetValueRuleText(ValueRule value)
         {
-            string cond = string.IsNullOrEmpty(value.Pattern) ?
+            string cond = string.IsNullOrEmpty(value.Path) ?
                 "모두" :
-                $"{(value.Path.Length == 0 ? "현재 노드" : value.Path)} {this.cmbValueComparison.Text} {value.Pattern}";
-            return "Value: " + cond;
+                $"{(value.Path.Length == 0 ? "현재 노드" : value.Path)} {(string.IsNullOrEmpty(value.Pattern) ? "==" : this.cmbValueComparison.Text)} \"{value.Pattern}\"";
+            return (value.Required ? "Value(필수): " : "Value(선택): ") + cond;
         }
 
         private void LoadEditor()
@@ -587,11 +609,13 @@ namespace WzComparerR2
             this.cmbTextComparison.Visible = isRule;
             this.txtTextPattern.Visible = isRule;
             this.cmbTargetOutput.Visible = isRule;
+            this.chkSearchDescendants.Visible = false;
             this.txtValuePath.Visible = isValue;
             this.cmbValueType.Visible = isValue;
             this.cmbValueComparison.Visible = isValue;
             this.txtValuePattern.Visible = isValue;
             this.cmbValueOutput.Visible = isValue;
+            this.chkValueRequired.Visible = isValue;
             if (tag is QueryRule rule)
             {
                 this.lblEditorType.Text = rule.Kind == QueryRuleKind.Target ? "타겟 Text" : "제외 Text";
@@ -599,6 +623,9 @@ namespace WzComparerR2
                 this.txtTextPattern.Text = rule.TextPattern;
                 this.cmbTargetOutput.SelectedIndex = rule.Output ? 1 : 0;
                 this.cmbTargetOutput.Enabled = rule.Kind == QueryRuleKind.Target;
+                bool isLeafTarget = rule.Kind == QueryRuleKind.Target && !rule.Children.Any(child => child.Kind == QueryRuleKind.Target);
+                this.chkSearchDescendants.Visible = isLeafTarget;
+                this.chkSearchDescendants.Checked = isLeafTarget && rule.SearchDescendants;
             }
             else if (tag is ValueRule value)
             {
@@ -610,6 +637,7 @@ namespace WzComparerR2
                 this.txtValuePattern.Text = value.Pattern;
                 this.cmbValueOutput.SelectedIndex = value.Output ? 1 : 0;
                 this.cmbValueOutput.Enabled = !isExcludeValue;
+                this.chkValueRequired.Checked = value.Required;
             }
             this.updatingEditor = false;
         }
@@ -625,6 +653,8 @@ namespace WzComparerR2
                 rule.TextComparison = this.cmbTextComparison.SelectedIndex;
                 rule.TextPattern = this.txtTextPattern.Text;
                 rule.Output = rule.Kind == QueryRuleKind.Target && this.cmbTargetOutput.SelectedIndex == 1;
+                bool isLeafTarget = rule.Kind == QueryRuleKind.Target && !rule.Children.Any(child => child.Kind == QueryRuleKind.Target);
+                rule.SearchDescendants = isLeafTarget && this.chkSearchDescendants.Checked;
                 this.queryTree.SelectedNode.Text = this.GetRuleText(rule);
             }
             else if (this.queryTree.SelectedNode.Tag is ValueRule value)
@@ -635,6 +665,7 @@ namespace WzComparerR2
                 value.Comparison = this.cmbValueComparison.SelectedIndex;
                 value.Pattern = this.txtValuePattern.Text;
                 value.Output = !isExcludeValue && this.cmbValueOutput.SelectedIndex == 1;
+                value.Required = this.chkValueRequired.Checked;
                 this.queryTree.SelectedNode.Text = this.GetValueRuleText(value);
             }
         }
@@ -737,8 +768,8 @@ namespace WzComparerR2
 
         private static bool ExecuteChildren(Wz_Node parent, string parentPath, List<string> parentOutputs, IList<QueryRule> rules, List<QueryResult> results, CancellationToken token, IList<Wz_Node> directChildren = null, IProgress<QueryProgress> progress = null)
         {
-            List<QueryRule> targets = rules.Where(rule => rule.Kind == QueryRuleKind.Target).ToList();
-            List<QueryRule> excludes = rules.Where(rule => rule.Kind == QueryRuleKind.Exclude).ToList();
+            List<QueryRule> targetRules = rules.Where(rule => rule.Kind == QueryRuleKind.Target).ToList();
+            List<QueryRule> excludeRules = rules.Where(rule => rule.Kind == QueryRuleKind.Exclude).ToList();
             IList<Wz_Node> children = directChildren ?? GetChildren(parent).ToList();
 
             for (int childIndex = 0; childIndex < children.Count; childIndex++)
@@ -749,14 +780,14 @@ namespace WzComparerR2
                 progress?.Report(new QueryProgress(childIndex, children.Count, parentPath + "\\" + child.Text));
 
                 // 제외 노드 텍스트 조건 확인
-                List<QueryRule> textMatchedExcludes = excludes.Where(rule => rule.IsTextMatch(child)).ToList();
-                if (textMatchedExcludes.Any(rule => rule.Values.Count == 0))
+                List<QueryRule> textMatchedExcludeRules = excludeRules.Where(rule => rule.IsTextMatch(child)).ToList();
+                if (textMatchedExcludeRules.Any(rule => rule.Values.Count == 0))
                 {
                     continue;
                 }
                 // 타겟 노드 텍스트 조건 확인
-                List<QueryRule> textMatchedTargets = targets.Where(rule => rule.IsTextMatch(child)).ToList();
-                if (targets.Count > 0 && textMatchedTargets.Count == 0)
+                List<QueryRule> textMatchedTargetRules = targetRules.Where(rule => rule.IsTextMatch(child)).ToList();
+                if (targetRules.Count > 0 && textMatchedTargetRules.Count == 0)
                 {
                     continue;
                 }
@@ -764,8 +795,8 @@ namespace WzComparerR2
                 Wz_Image image = child.GetValue<Wz_Image>();
                 bool extractedByQuery = false;
                 bool needsImgExtract = image != null &&
-                    (textMatchedExcludes.Any(rule => rule.Values.Count > 0) ||
-                    textMatchedTargets.Any(rule => rule.Values.Count > 0 || rule.Children.Count > 0));
+                    (textMatchedExcludeRules.Any(rule => rule.Values.Count > 0) ||
+                    textMatchedTargetRules.Any(rule => rule.Values.Count > 0 || rule.Children.Count > 0 || rule.SearchDescendants));
                 try
                 {
                     if (needsImgExtract)
@@ -777,14 +808,14 @@ namespace WzComparerR2
                         }
                     }
                     // 제외 노드 Value 조건 확인
-                    if (textMatchedExcludes.Any(rule => rule.Values.All(value => value.IsMatch(child))))
+                    if (textMatchedExcludeRules.Any(rule => rule.AreValuesMatch(child)))
                     {
                         continue;
                     }
 
                     string path = parentPath + "\\" + child.Text;
                     // 타겟 노드 없으면 검색 성공, 하위 노드 반복 X
-                    if (targets.Count == 0)
+                    if (targetRules.Count == 0)
                     {
                         results.Add(new QueryResult(path, parentOutputs.Count > 0 ? string.Join(", ", parentOutputs) : string.Empty));
                         if (results.Count >= MaxResultCount)
@@ -794,15 +825,29 @@ namespace WzComparerR2
                         continue;
                     }
 
-                    // 타겟 노드 Value 조건 확인, 하위 노드 반복
-                    foreach (QueryRule target in textMatchedTargets.Where(rule => rule.Values.All(value => value.IsMatch(child))))
+                    // 모든 하위 노드 검색
+                    foreach (QueryRule target in textMatchedTargetRules.Where(rule => rule.SearchDescendants))
                     {
                         var outputs = new List<string>(parentOutputs);
                         if (target.Output)
                         {
                             outputs.Add(child.Text ?? string.Empty);
                         }
-                        outputs.AddRange(target.Values.Where(value => value.Output).Select(value => value.GetOutput(child)));
+                        if (ExecuteDescendants(child, path, outputs, target, target.Children, results, token))
+                        {
+                            return true;
+                        }
+                    }
+
+                    // 타겟 노드 Value 조건 확인, 하위 쿼리 진행
+                    foreach (QueryRule target in textMatchedTargetRules.Where(rule => !rule.SearchDescendants && rule.AreValuesMatch(child)))
+                    {
+                        var outputs = new List<string>(parentOutputs);
+                        if (target.Output)
+                        {
+                            outputs.Add(child.Text ?? string.Empty);
+                        }
+                        outputs.AddRange(target.Values.Where(value => value.Output && value.IsMatch(child)).Select(value => value.GetOutput(child)));
 
                         if (target.Children.Count > 0)
                         {
@@ -819,6 +864,65 @@ namespace WzComparerR2
                                 return true;
                             }
                         }
+                    }
+                }
+                finally
+                {
+                    if (extractedByQuery)
+                    {
+                        image.Unextract();
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool ExecuteDescendants(Wz_Node parent, string parentPath, List<string> parentOutputs, QueryRule target, IList<QueryRule> rules, List<QueryResult> results, CancellationToken token)
+        {
+            List<QueryRule> excludeRules = rules.Where(rule => rule.Kind == QueryRuleKind.Exclude).ToList();
+            IList<Wz_Node> children = GetChildren(parent).ToList();
+
+            foreach (Wz_Node child in children)
+            {
+                token.ThrowIfCancellationRequested();
+
+                List<QueryRule> textMatchedExcludeRules = excludeRules.Where(rule => rule.IsTextMatch(child)).ToList();
+                if (textMatchedExcludeRules.Any(rule => rule.Values.Count == 0))
+                {
+                    continue;
+                }
+
+                Wz_Image image = child.GetValue<Wz_Image>();
+                bool extractedByQuery = false;
+                try
+                {
+                    if (image != null)
+                    {
+                        extractedByQuery = !image.IsExtracted;
+                        if (!image.TryExtract())
+                        {
+                            continue;
+                        }
+                    }
+                    if (textMatchedExcludeRules.Any(rule => rule.AreValuesMatch(child)))
+                    {
+                        continue;
+                    }
+
+                    string path = parentPath + "\\" + child.Text;
+                    if (target.AreValuesMatch(child))
+                    {
+                        var outputs = new List<string>(parentOutputs);
+                        outputs.AddRange(target.Values.Where(value => value.Output && value.IsMatch(child)).Select(value => value.GetOutput(child)));
+                        results.Add(new QueryResult(path, outputs.Count > 0 ? string.Join(", ", outputs) : string.Empty));
+                        if (results.Count >= MaxResultCount)
+                        {
+                            return true;
+                        }
+                    }
+                    if (ExecuteDescendants(child, path, parentOutputs, target, rules, results, token))
+                    {
+                        return true;
                     }
                 }
                 finally
@@ -930,6 +1034,7 @@ namespace WzComparerR2
         public int TextComparison { get; set; }
         public string TextPattern { get; set; }
         public bool Output { get; set; }
+        public bool SearchDescendants { get; set; }
         public List<ValueRule> Values { get; private set; }
         public List<QueryRule> Children { get; private set; }
 
@@ -938,9 +1043,17 @@ namespace WzComparerR2
             return StringMatcher.IsMatch(node.Text ?? string.Empty, this.TextPattern, this.TextComparison);
         }
 
+        public bool AreValuesMatch(Wz_Node node)
+        {
+            IEnumerable<ValueRule> requiredValues = this.Values.Where(value => value.Required);
+            IEnumerable<ValueRule> optionalValues = this.Values.Where(value => !value.Required);
+            return requiredValues.All(value => value.IsMatch(node)) &&
+                (!optionalValues.Any() || optionalValues.Any(value => value.IsMatch(node)));
+        }
+
         public bool IsMatch(Wz_Node node)
         {
-            return this.IsTextMatch(node) && this.Values.All(value => value.IsMatch(node));
+            return this.IsTextMatch(node) && this.AreValuesMatch(node);
         }
     }
 
@@ -957,18 +1070,19 @@ namespace WzComparerR2
         public int Comparison { get; set; }
         public string Pattern { get; set; }
         public bool Output { get; set; }
+        public bool Required { get; set; }
 
         public bool IsMatch(Wz_Node node)
         {
-            if (string.IsNullOrEmpty(this.Pattern))
-            {
-                return true;
-            }
-
             Wz_Node valueNode = Resolve(node, this.Path);
             if (valueNode == null)
             {
                 return false;
+            }
+            if (string.IsNullOrEmpty(this.Pattern))
+            {
+                string text = valueNode.GetValueEx<string>(string.Empty);
+                return text.Length == 0;
             }
 
             switch (this.ValueType)
@@ -997,6 +1111,7 @@ namespace WzComparerR2
                 {
                     return $"{valueNode.Text}: {value}";
                 }
+                else return valueNode.Text;
             }
             return string.Empty;
         }
