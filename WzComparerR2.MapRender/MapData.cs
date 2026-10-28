@@ -774,8 +774,8 @@ namespace WzComparerR2.MapRender
             back.View = new BackItem.ItemView()
             {
                 Animator = animator,
-                FlowX = aniNode?.Nodes["flowX"]?.GetValueEx(0),
-                FlowY = aniNode?.Nodes["flowY"]?.GetValueEx(0),
+                FlowX = back.FlowX,
+                FlowY = back.FlowY,
                 Bounds = bounds,
             };
         }
@@ -1051,7 +1051,7 @@ namespace WzComparerR2.MapRender
         private void PreloadResource(ResourceLoader resLoader, ParticleItem particle)
         {
             string path = $@"Effect\particle.img\{particle.ParticleName}";
-            var particleNode = PluginManager.FindWz(path);
+            var particleNode = PluginManager.FindWz(path) ?? PluginManager.FindWz($@"{particle.SubItems[0].Path}\{particle.ParticleName}");
 
             if (particleNode == null)
             {
@@ -1554,11 +1554,11 @@ namespace WzComparerR2.MapRender
             }
         }
 
-        public bool SummonMob(int id, int x, int y, int z0, int z1, int fh, bool flip, bool playRegenMotion = false)
+        public bool SummonMob(int id, int x, int y, int z0, int z1, int fh, bool flip, int? rx0 = null, int? rx1 = null, bool playRegenMotion = false)
         {
             var path = $@"Mob\{id:D7}.img";
             var mobNode = PluginManager.FindWz(path);
-            LifeItem mob = LifeItem.Create(id, LifeItem.LifeType.Mob, x, y, index: z1, flip: flip);
+            LifeItem mob = LifeItem.Create(id, LifeItem.LifeType.Mob, x, y, rx0, rx1, index: z1, flip: flip);
             if (mobNode != null && mob != null)
             {
                 // init controller

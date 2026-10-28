@@ -529,11 +529,21 @@ namespace WzComparerR2.CharaSimControl
                 expireTime = "";
                 if (item.ConsumableFrom != null)
                 {
-                    expireTime += string.Format("{0}년 {1}월 {2}일 {3:D2}시 {4:D2}분부터 사용가능", Convert.ToInt32(item.ConsumableFrom.Substring(0, 4)), Convert.ToInt32(item.ConsumableFrom.Substring(4, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(6, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(8, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(10, 2)));
+                    Match match = Regex.Match(item.ConsumableFrom, @"^#DL(.+?)#$");
+                    if (match.Success)
+                    {
+                        expireTime += StringTagConverter.ConvertDateWZ2(match.Groups[1].Value, PluginManager.FindWz, this.SourceWzFile) + "부터 사용가능";
+                    }
+                    else expireTime += string.Format("{0}년 {1}월 {2}일 {3:D2}시 {4:D2}분부터 사용가능", Convert.ToInt32(item.ConsumableFrom.Substring(0, 4)), Convert.ToInt32(item.ConsumableFrom.Substring(4, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(6, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(8, 2)), Convert.ToInt32(item.ConsumableFrom.Substring(10, 2)));
                 }
                 if (item.EndUseDate != null)
                 {
-                    expireTime += string.Format("{0}년 {1}월 {2}일 {3:D2}시 {4:D2}분까지 사용가능", Convert.ToInt32(item.EndUseDate.Substring(0, 4)), Convert.ToInt32(item.EndUseDate.Substring(4, 2)), Convert.ToInt32(item.EndUseDate.Substring(6, 2)), Convert.ToInt32(item.EndUseDate.Substring(8, 2)), Convert.ToInt32(item.EndUseDate.Substring(10, 2)));
+                    Match match = Regex.Match(item.EndUseDate, @"^#DL(.+?)#$");
+                    if (match.Success)
+                    {
+                        expireTime += StringTagConverter.ConvertDateWZ2(match.Groups[1].Value, PluginManager.FindWz, this.SourceWzFile) + "까지 사용가능";
+                    }
+                    else expireTime += string.Format("{0}년 {1}월 {2}일 {3:D2}시 {4:D2}분까지 사용가능", Convert.ToInt32(item.EndUseDate.Substring(0, 4)), Convert.ToInt32(item.EndUseDate.Substring(4, 2)), Convert.ToInt32(item.EndUseDate.Substring(6, 2)), Convert.ToInt32(item.EndUseDate.Substring(8, 2)), Convert.ToInt32(item.EndUseDate.Substring(10, 2)));
                 }
             }
             else if ((item.Props.TryGetValue(ItemPropType.permanent, out value) && value != 0) || (item.IsPet && item.Props.TryGetValue(ItemPropType.life, out value) && value == 0))
@@ -1158,6 +1168,26 @@ namespace WzComparerR2.CharaSimControl
                 if (item.Props.TryGetValue(ItemPropType.noScroll, out value) && value > 0)
                 {
                     tags.Add("#$r펫 스킬 주문서, 펫작명하기 사용 불가#");
+                }
+
+                if (item.Props.TryGetValue(ItemPropType.noPetEquipCoupon, out value) && value > 0)
+                {
+                    if (Item.Props.TryGetValue(ItemPropType.wonderGrade, out var wonderGradeValue) && wonderGradeValue > 0)
+                    {
+                        switch (wonderGradeValue)
+                        {
+                            case 6:
+                                tags.Add("#$r루나 쁘띠 펫장비 교환권 사용 불가#");
+                                break;
+                            default:
+                                tags.Add("#$r원더 블랙 펫장비 교환권 사용 불가#");
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        tags.Add("#$r펫장비 교환권 사용 불가#");
+                    }
                 }
             }
 
