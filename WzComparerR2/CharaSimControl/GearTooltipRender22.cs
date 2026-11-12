@@ -452,8 +452,11 @@ namespace WzComparerR2.CharaSimControl
             g.DrawImage(Resource.UIToolTipNew_img_Item_Equip_imgFont_atkPow_plus_0, 293, picH + 38); //暂时画个
             picH += 78;
 
-            // 장비 분류
-            DrawCategory(g, picH);
+            // 장비 
+            if (Gear.type != GearType.equipBag)
+            {
+                DrawCategory(g, picH);
+            }
             picH += 18;
 
             // 착용 직업
@@ -883,7 +886,7 @@ namespace WzComparerR2.CharaSimControl
                 hasThirdContents = true;
                 hasOptionPart = true;
 
-                DateTime time = DateTime.Now.AddDays((Gear.Props.TryGetValue(GearPropType.masterSpecial, out value) && value > 0) ? 190d : 7d);
+                DateTime time = DateTime.Now.AddDays((Gear.Props.TryGetValue(GearPropType.masterSpecial, out value2) && value2 > 0) ? 190d : 7d);
                 var text = $"#$e{ItemStringHelper.GetGearPropString22(GearPropType.abilityTimeLimited, value)[0]} : {time.ToString("yyyy년 M월 d일 HH시 mm분")}" +
                     $"{ItemStringHelper.GetGearPropString22(GearPropType.notExtend, value)[0]}#";
 
