@@ -917,6 +917,38 @@ namespace WzComparerR2
             //this.pictureBoxEx1.PictureName = aniName;
         }
 
+        private void buttonMergeChatBalloonRing_Click(object sender, EventArgs e)
+        {
+            if (this.advTree3.SelectedNode == null)
+            {
+                return;
+            }
+
+            var node = this.advTree3.SelectedNode.AsWzNode();
+            var multiData = this.pictureBoxEx1.LoadMultiFrameAnimation(node);
+            if (multiData == null)
+            {
+                MessageBoxEx.Show("말풍선 반지 멀티프레임을 불러올 수 없습니다.", "말풍선 반지 합치기");
+                return;
+            }
+
+            try
+            {
+                if (!this.pictureBoxEx1.ShowChatBalloonRingOverlay(multiData))
+                {
+                    MessageBoxEx.Show("필수 멀티프레임(nw, n, ne, w, c, e, sw, s, se)이 모두 있어야 합니다.", "말풍선 반지 합치기");
+                    return;
+                }
+                this.cmbItemAniNames.Items.Clear();
+                this.cmbItemSkins.Visible = false;
+                this.pictureBoxEx1.PictureName = "중첩_" + GetSelectedNodeImageName();
+            }
+            finally
+            {
+                this.pictureBoxEx1.DisposeAnimationItem(new MultiFrameAnimator(multiData));
+            }
+        }
+
         private void OverlayMultiFrameWithKey(object sender, EventArgs e)
         {
             if (advTree3.SelectedNode == null)
@@ -1380,8 +1412,6 @@ namespace WzComparerR2
 
             Wz_Structure wz = new Wz_Structure();
             QueryPerformance.Start();
-            ImgNameContainer.Load();
-            DirNameContainer.Dirs.Clear();
             labelItemStatus.Text = $"로드 중: {wzFilePath}";
             advTree1.BeginUpdate();
             try
@@ -1446,6 +1476,10 @@ namespace WzComparerR2
                 WcR2Config.Default.RecentDocuments.Insert(0, wzFilePath);
                 ConfigManager.Save();
                 refreshRecentDocItems();
+                if (wz.wz_files.Any(file => file.IsImageScanFallback))
+                {
+                    this.BeginInvoke(new Action(() => ToastNotification.Show(this, "Wz 파일 형식을 해석할 수 없습니다.", null, 5000, eToastGlowColor.Red, eToastPosition.TopCenter)));
+                }
             }
             catch (FileNotFoundException)
             {
